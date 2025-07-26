@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 The Linux Foundation
+
+# Act configuration for local testing of GitHub Actions
+# This file configures nektos/act for testing the 1Password Secrets Action locally
+
+# Use Ubuntu 24.04 as the default runner image
+-P ubuntu-latest=catthehacker/ubuntu:act-24.04
+-P ubuntu-24.04=catthehacker/ubuntu:act-24.04
+
+# Set default secrets for testing
+# Note: These should be overridden with real values for actual testing
+--secret OP_SERVICE_ACCOUNT_TOKEN=ops_test_token_placeholder_value_change_me
+
+# Set default environment variables
+--env OP_TEST_VAULT_NAME="Test Vault"
+
+# Default workflow file to run
+--defaultbranch main
+
+# Enable verbose output for debugging
+--verbose
+
+# Set job timeout (30 minutes)
+--job-timeout 30m
+
+# Use host networking (helpful for some integrations)
+--use-gitignore=false
+
+# Mount the current directory as workspace
+--bind
+
+# Container options for better performance
+--container-options "--memory=4g --cpus=2"
+
+# Platform specification
+--platform linux/amd64
+
+# Artifact server settings (if needed)
+--artifact-server-path /tmp/act-artifacts

@@ -1,0 +1,60 @@
+---
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2025 The Linux Foundation
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - gosec
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+    - unused
+    - gocyclo
+    - goconst
+    - nakedret
+
+linters-settings:
+  gocyclo:
+    min-complexity: 25
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+      - name: var-naming
+        disabled: true
+  gosec:
+    excludes:
+      - G104 # errors not checked - covered by errcheck
+      - G601 # implicit memory aliasing in range (intentional in low-level code)
+      - G307 # deferring a method which returns an error
+  govet:
+    settings:
+      shadow: true
+  misspell:
+    locale: US
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: ^pkg/security/
+      linters:
+        - gosec
+    - path: _test\.go$
+      linters:
+        - gosec
+        - errcheck
+    - path: ^internal/app/
+      linters:
+        - gocyclo
