@@ -2,36 +2,216 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
-# actions-template
-name: "🛠️ Actions Template"
-description: "Description of action"
-# Any relevant notes/observations can go here
+name: "🔐 1Password Secrets Action"
+description: >-
+  Securely retrieve secrets from 1Password vaults for GitHub Actions
+  workflows. Builds locally for maximum compatibility across forks.
+author: "The Linux Foundation"
+
+branding:
+  icon: "lock"
+  color: "blue"
 
 inputs:
-  input:
-    description: "Description of input"
+  token:
+    description: "1Password service account token"
     required: true
 
+  vault:
+    description: "Vault name or ID where secrets are stored"
+    required: true
+
+  record:
+    description: |
+      Secret specification in one of these formats:
+      - Single: "secret-name/field-name"
+      - Multiple JSON: {"key1": "secret1/field1", "key2": "secret2/field2"}
+      - Multiple YAML: "key1: secret1/field1\nkey2: secret2/field2"
+    required: true
+
+  return_type:
+    description: "How to return values: 'output' (default), 'env', or 'both'"
+    required: false
+    default: "output"
+
+  profile:
+    description: >-
+      Configuration profile to use (development, staging, production)
+    required: false
+
+  config_file:
+    description: "Path to configuration file"
+    required: false
+
+  timeout:
+    description: "Operation timeout in seconds"
+    required: false
+    default: "300"
+
+  retry_timeout:
+    description: "Retry timeout in seconds"
+    required: false
+    default: "30"
+
+  connect_timeout:
+    description: "Connection timeout in seconds"
+    required: false
+    default: "10"
+
+  max_concurrency:
+    description: "Maximum concurrent operations"
+    required: false
+    default: "5"
+
+  cache_enabled:
+    description: "Enable caching for improved performance"
+    required: false
+    default: "false"
+
+  cache_ttl:
+    description: "Cache time-to-live in seconds"
+    required: false
+    default: "300"
+
+  cli_version:
+    description: >-
+      1Password CLI version to use ('latest' or semver like 'v2.18.0')
+    required: false
+    default: "latest"
+
+  cli_path:
+    description: "Custom path to 1Password CLI binary"
+    required: false
+
+  debug:
+    description: "Enable debug logging"
+    required: false
+    default: "false"
+
+  download_url:
+    description: "Custom download URL for the op-secrets-action binary (optional, builds locally by default)"
+    required: false
+
+  checksum:
+    description: "Expected SHA256 checksum for the custom binary (required when using download_url)"
+    required: false
+
 outputs:
-  output:
-    description: "Description of output"
-    value: ${{ steps.code.outputs.output }}
+  value:
+    description: "Secret value (for single secret retrieval)"
+    value: ${{ steps.retrieve.outputs.value }}
+
+  secrets_count:
+    description: "Number of secrets retrieved (for multiple secrets)"
+    value: ${{ steps.retrieve.outputs.secrets_count }}
 
 runs:
   using: "composite"
   steps:
-    - name: "Friendly Name"
-      id: code
+    - name: "Retrieve 1Password Secrets"
+      id: retrieve
       shell: bash
       run: |
-        # Friendly Name
-        input="${{ inputs.input }}"
-        if [ -z "$input" ]; then
-          echo "Error: mandatory input was not set/configured ❌"
-          exit 1
+        # Build and execute the 1Password secrets retrieval binary
+        set -euo pipefail
+
+        # Determine architecture and OS
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case $ARCH in
+          x86_64) ARCH="amd64" ;;
+          arm64|aarch64) ARCH="arm64" ;;
+          *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
+        esac
+
+        # Set binary name
+        BINARY_NAME="op-secrets-action-${OS}-${ARCH}"
+
+        # Check if custom download URL is provided, otherwise build locally
+        if [ -n "${{ inputs.download_url }}" ]; then
+          echo "::group::Downloading 1Password Secrets Action binary"
+          echo "Download URL: ${{ inputs.download_url }}"
+          curl -fsSL -o "${BINARY_NAME}" "${{ inputs.download_url }}"
+
+          # Verify checksum if provided
+          if [ -n "${{ inputs.checksum }}" ]; then
+            echo "Verifying checksum..."
+            ACTUAL_CHECKSUM=$(sha256sum "${BINARY_NAME}" | cut -d' ' -f1)
+            if [ "${ACTUAL_CHECKSUM}" != "${{ inputs.checksum }}" ]; then
+              echo "::error::Checksum verification failed!"
+              echo "::error::Expected: ${{ inputs.checksum }}"
+              echo "::error::Actual: ${ACTUAL_CHECKSUM}"
+              exit 1
+            fi
+            echo "Checksum verification passed"
+          else
+            echo "::warning::Custom download URL provided without checksum - proceeding without verification"
+          fi
+          echo "::endgroup::"
+        else
+          echo "::group::Building 1Password Secrets Action binary"
+
+          # Check if we have Go installed
+          if ! command -v go &> /dev/null; then
+            echo "::error::Go is not installed and no download_url provided"
+            echo "::error::Please install Go or provide a custom download_url"
+            exit 1
+          fi
+
+          # Build the binary locally
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+
+          echo "Building binary locally..."
+          echo "Version: ${VERSION}"
+          echo "Build Time: ${BUILD_TIME}"
+          echo "Git Commit: ${GIT_COMMIT}"
+
+          CGO_ENABLED=0 GOOS="${OS}" GOARCH="${ARCH}" go build \
+            -ldflags="-s -w -X main.Version=${VERSION} -X \
+            main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}" \
+            -o "${BINARY_NAME}" \
+            ./cmd/op-secrets-action
+
+          echo "✅ Built binary locally"
+          echo "::endgroup::"
         fi
 
-        echo "output=$input" >> "$GITHUB_ENV"
-        echo "output=$input" >> "$GITHUB_OUTPUT"
-        echo "Action received: $input ✅"
-        echo "Action received: $input ✅" >> "$GITHUB_STEP_SUMMARY"
+        # Make executable
+        chmod +x "${BINARY_NAME}"
+
+        # Execute the binary with inputs
+        ./"${BINARY_NAME}" \
+          --token="${{ inputs.token }}" \
+          --vault="${{ inputs.vault }}" \
+          --record="${{ inputs.record }}" \
+          --return-type="${{ inputs.return_type }}" \
+          --profile="${{ inputs.profile }}" \
+          --config="${{ inputs.config_file }}" \
+          --timeout="${{ inputs.timeout }}" \
+          --max-concurrency="${{ inputs.max_concurrency }}" \
+          --cli-version="${{ inputs.cli_version }}" \
+          $([ "${{ inputs.cache_enabled }}" = "true" ] && echo "--cache") \
+          $([ "${{ inputs.debug }}" = "true" ] && echo "--debug")
+
+        # Clean up the binary
+        rm -f "${BINARY_NAME}"
+      env:
+        OP_TOKEN: ${{ inputs.token }}
+        OP_VAULT: ${{ inputs.vault }}
+        OP_RECORD: ${{ inputs.record }}
+        OP_RETURN_TYPE: ${{ inputs.return_type }}
+        OP_PROFILE: ${{ inputs.profile }}
+        OP_CONFIG_FILE: ${{ inputs.config_file }}
+        OP_TIMEOUT: ${{ inputs.timeout }}
+        OP_RETRY_TIMEOUT: ${{ inputs.retry_timeout }}
+        OP_CONNECT_TIMEOUT: ${{ inputs.connect_timeout }}
+        OP_MAX_CONCURRENCY: ${{ inputs.max_concurrency }}
+        OP_CACHE_ENABLED: ${{ inputs.cache_enabled }}
+        OP_CACHE_TTL: ${{ inputs.cache_ttl }}
+        OP_CLI_VERSION: ${{ inputs.cli_version }}
+        OP_CLI_PATH: ${{ inputs.cli_path }}
+        DEBUG: ${{ inputs.debug }}
+        ACTION_DOWNLOAD_URL: ${{ inputs.download_url }}
+        ACTION_CHECKSUM: ${{ inputs.checksum }}
