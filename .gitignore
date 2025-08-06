@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 # Temporary and binary files
+/test-reports
 *~
 *.py[cod]
 *.so
@@ -58,3 +59,50 @@ MANIFEST
 
 # Node
 node_modules/*
+
+# Go
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Build artifacts
+/op-secrets-action
+dist/
+build/
+
+# Coverage files
+coverage.out
+coverage.html
+*.prof
+
+# Security scan results
+gosec.sarif
+*.sarif
+
+# IDE
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

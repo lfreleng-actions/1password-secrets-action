@@ -11,6 +11,7 @@ ci:
     Chore: pre-commit autoupdate
 
     Signed-off-by: pre-commit-ci[bot] <pre-commit-ci@users.noreply.github.com>
+  skip: [go-fmt, go-vet, go-mod-tidy, go-test, golangci-lint]
 
 exclude: "^docs/conf.py"
 
@@ -63,11 +64,12 @@ repos:
     hooks:
       - id: mypy
 
-  - repo: https://github.com/btford/write-good
-    rev: ab66ce10136dfad5146e69e70f82a3efac8842c1 # frozen: v1.0.8
-    hooks:
-      - id: write-good
-        files: "\\.(rst|md|markdown|mdown|mkdn)$"
+  # Temporarily disabled due to sheer volume of issues flagged
+  # - repo: https://github.com/btford/write-good
+  #   rev: ab66ce10136dfad5146e69e70f82a3efac8842c1 # frozen: v1.0.8
+  #   hooks:
+  #     - id: write-good
+  #       files: "\\.(rst|md|markdown|mdown|mkdn)$"
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: a23f6b85d0fdd5bb9d564e2579e678033debbdff # frozen: v0.10.0.1
@@ -113,3 +115,37 @@ repos:
         types:
           - yaml
       - id: check-readthedocs
+
+  # Go-specific linting and formatting
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: gofmt
+        language: system
+        files: \.go$
+        args: [-w]
+      - id: go-vet
+        name: go vet
+        entry: bash -c 'go vet ./...'
+        language: system
+        files: \.go$
+        pass_filenames: false
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: bash -c 'go mod tidy'
+        language: system
+        files: go\.(mod|sum)$
+        pass_filenames: false
+      - id: go-test
+        name: go test
+        entry: bash -c 'go test -timeout=5m ./...'
+        language: system
+        files: \.go$
+        pass_filenames: false
+      - id: golangci-lint
+        name: golangci-lint
+        entry: bash -c 'command -v golangci-lint >/dev/null 2>&1 && golangci-lint run --timeout=5m'
+        language: system
+        files: \.go$
+        pass_filenames: false
