@@ -8,22 +8,6 @@ name: "Test 1Password Secrets Action 🧪"
 # yamllint disable-line rule:truthy
 on:
   workflow_dispatch:
-    inputs:
-      run_integration_tests:
-        description: "Force run integration tests (even without 1Password token)"
-        required: false
-        type: boolean
-        default: true
-      run_performance_tests:
-        description: "Run performance tests"
-        required: false
-        type: boolean
-        default: true
-      debug_mode:
-        description: "Enable debug logging"
-        required: false
-        type: boolean
-        default: false
   push:
     branches: ["main"]
   pull_request:
@@ -41,7 +25,7 @@ jobs:
   ### Security Checks ###
   security-checks:
     name: "Security Checks"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 10
@@ -83,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-latest, macos-14]
         go-version: ['1.21', '1.22', '1.23']
     steps:
       - name: "Checkout repository"
@@ -114,7 +98,7 @@ jobs:
 
       - name: "Upload coverage to Codecov"
         uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24 # v5.4.3
-        if: matrix.os == 'ubuntu-24.04' && matrix.go-version == '1.23'
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.23'
         with:
           files: coverage.out
           flags: unittests
@@ -132,7 +116,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-latest, macos-14]
         go-version: ['1.21', '1.22', '1.23']
     steps:
       - name: "Checkout repository"
@@ -179,7 +163,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-latest, macos-14]
         arch: [amd64, arm64]
     steps:
       - name: "Checkout repository"
@@ -199,14 +183,19 @@ jobs:
         shell: bash
         run: |
           echo "Building for ${GOOS}/${GOARCH}"
-          go build -v -o op-secrets-action-${GOOS}-${GOARCH} ./cmd/op-secrets-action
+          go build -v -o "op-secrets-action-${GOOS}-${GOARCH}" ./cmd/op-secrets-action
           ls -la op-secrets-action-*
 
       - name: "Test binary execution (if compatible)"
         if: matrix.arch == 'amd64' || (matrix.arch == 'arm64' && runner.arch == 'ARM64')
         shell: bash
         run: |
-          ./op-secrets-action-* --help || echo "Binary execution test completed"
+          for binary in ./op-secrets-action-*; do
+            if [ -f "$binary" ]; then
+              "$binary" --help || echo "Binary execution test completed"
+              break
+            fi
+          done
 
   ### Main Package Functional Tests ###
   main-package-functional-tests:
@@ -218,7 +207,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-latest, macos-14]
         go-version: ['1.21', '1.22', '1.23']
     steps:
       - name: "Checkout repository"
@@ -260,7 +249,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-latest, macos-14]
         go-version: ['1.21', '1.22', '1.23']
     steps:
       - name: "Checkout repository"
@@ -298,7 +287,7 @@ jobs:
   ### Integration Tests ###
   integration-tests:
     name: "Integration Tests"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 20
@@ -380,13 +369,12 @@ jobs:
       OP_TEST_VAULT_NAME: ${{ secrets.OP_TEST_VAULT_NAME }}
     with:
       timeout: 25
-      debug: ${{ inputs.debug_mode || false }}
       manual_dispatch: true
 
   ### Performance Tests ###
   performance-tests:
     name: "Performance Tests"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 30
@@ -462,7 +450,7 @@ jobs:
   ### Security Tests ###
   security-tests:
     name: "Security Tests"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       security-events: write
@@ -513,7 +501,7 @@ jobs:
   ### Test Result Summary ###
   test-summary:
     name: "Test Summary"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     needs: [
       security-checks,
       functional-tests,
