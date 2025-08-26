@@ -5,6 +5,8 @@
 extends: default
 
 rules:
+  line-length:
+    max: 120
   empty-lines:
     max-end: 1
   comments:
