@@ -1,0 +1,243 @@
+//go:build windows
+// +build windows
+
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2025 The Linux Foundation
+
+package security
+
+import (
+	"fmt"
+	"syscall"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
+)
+
+var (
+	kernel32         = windows.NewLazySystemDLL("kernel32.dll")
+	procVirtualLock  = kernel32.NewProc("VirtualLock")
+	procVirtualUnlock = kernel32.NewProc("VirtualUnlock")
+)
+
+// lockMemoryWindows locks memory on Windows systems using VirtualLock
+func (ss *SecureString) lockMemoryWindows() error {
+	if len(ss.data) == 0 {
+		return nil
+	}
+
+	addr := uintptr(unsafe.Pointer(&ss.data[0]))
+	size := uintptr(len(ss.data))
+
+	ret, _, err := procVirtualLock.Call(addr, size)
+	if ret == 0 {
+		return fmt.Errorf("VirtualLock failed: %w", err)
+	}
+
+	ss.addr = addr
+	ss.size = size
+	return nil
+}
+
+// unlockMemoryWindows unlocks memory on Windows systems using VirtualUnlock
+func (ss *SecureString) unlockMemoryWindows() error {
+	if ss.addr == 0 || ss.size == 0 {
+		return nil
+	}
+
+	ret, _, err := procVirtualUnlock.Call(ss.addr, ss.size)
+	if ret == 0 {
+		return fmt.Errorf("VirtualUnlock failed: %w", err)
+	}
+
+	ss.locked = false
+	ss.addr = 0
+	ss.size = 0
+	return nil
+}
+
+// isSecureMemoryAvailableWindows checks if secure memory operations are available on Windows
+func isSecureMemoryAvailableWindows() bool {
+	// Test if we can allocate and lock a small amount of memory
+	testData := make([]byte, 4096) // One page
+	addr := uintptr(unsafe.Pointer(&testData[0]))
+	size := uintptr(len(testData))
+
+	ret, _, _ := procVirtualLock.Call(addr, size)
+	if ret != 0 {
+		// Unlock the test memory
+		procVirtualUnlock.Call(addr, size)
+		return true
+	}
+	return false
+}
+
+// getPageSizeWindows returns the Windows page size
+func getPageSizeWindows() int {
+	var sysInfo windows.SystemInfo
+	windows.GetSystemInfo(&sysInfo)
+	return int(sysInfo.PageSize)
+}
+
+// setMemoryProtectionWindows sets memory protection flags
+func setMemoryProtectionWindows(addr uintptr, size uintptr, protect uint32) error {
+	var oldProtect uint32
+	err := windows.VirtualProtect(addr, size, protect, &oldProtect)
+	if err != nil {
+		return fmt.Errorf("VirtualProtect failed: %w", err)
+	}
+	return nil
+}
+
+// flushInstructionCacheWindows flushes the instruction cache
+func flushInstructionCacheWindows(addr uintptr, size uintptr) error {
+	currentProcess := windows.CurrentProcess()
+	err := windows.FlushInstructionCache(currentProcess, addr, size)
+	if err != nil {
+		return fmt.Errorf("FlushInstructionCache failed: %w", err)
+	}
+	return nil
+}
+
+// secureZeroWindows performs Windows-specific secure zeroing
+func secureZeroWindows(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+
+	// Use RtlSecureZeroMemory if available (Windows Vista+)
+	ntdll := windows.NewLazySystemDLL("ntdll.dll")
+	procRtlSecureZeroMemory := ntdll.NewProc("RtlSecureZeroMemory")
+
+	if err := procRtlSecureZeroMemory.Find(); err == nil {
+		// RtlSecureZeroMemory is available
+		addr := uintptr(unsafe.Pointer(&data[0]))
+		size := uintptr(len(data))
+		procRtlSecureZeroMemory.Call(addr, size)
+	} else {
+		// Fall back to manual zeroing with memory barriers
+		for i := range data {
+			data[i] = 0
+		}
+		// Add memory barrier to prevent optimization
+		windows.MemoryBarrier()
+	}
+}
+
+// lockProcessMemoryWindows locks the entire process memory to prevent swapping
+func lockProcessMemoryWindows() error {
+	currentProcess := windows.CurrentProcess()
+
+	// Get current process privileges
+	var token windows.Token
+	err := windows.OpenProcessToken(currentProcess, windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token)
+	if err != nil {
+		return fmt.Errorf("failed to open process token: %w", err)
+	}
+	defer token.Close()
+
+	// Enable SeLockMemoryPrivilege
+	var luid windows.LUID
+	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr("SeLockMemoryPrivilege"), &luid)
+	if err != nil {
+		return fmt.Errorf("failed to lookup privilege: %w", err)
+	}
+
+	privileges := windows.Tokenprivileges{
+		PrivilegeCount: 1,
+		Privileges: [1]windows.LUIDAndAttributes{
+			{
+				Luid:       luid,
+				Attributes: windows.SE_PRIVILEGE_ENABLED,
+			},
+		},
+	}
+
+	err = windows.AdjustTokenPrivileges(token, false, &privileges, 0, nil, nil)
+	if err != nil {
+		return fmt.Errorf("failed to adjust token privileges: %w", err)
+	}
+
+	// Lock working set
+	var minWorkingSet, maxWorkingSet uintptr
+	err = windows.GetProcessWorkingSetSize(currentProcess, &minWorkingSet, &maxWorkingSet)
+	if err != nil {
+		return fmt.Errorf("failed to get working set size: %w", err)
+	}
+
+	err = windows.SetProcessWorkingSetSize(currentProcess, minWorkingSet, maxWorkingSet)
+	if err != nil {
+		return fmt.Errorf("failed to set working set size: %w", err)
+	}
+
+	return nil
+}
+
+// getPlatformCapabilitiesWindows returns Windows-specific capabilities
+func getPlatformCapabilitiesWindows() PlatformCapabilities {
+	caps := PlatformCapabilities{
+		Platform:      "windows",
+		SecureZero:    true,
+		GuardPages:    true, // Windows supports guard pages
+		MemoryLocking: isSecureMemoryAvailableWindows(),
+	}
+
+	// Check for additional Windows-specific features
+	caps.Platform = fmt.Sprintf("windows-%s", getWindowsVersion())
+
+	return caps
+}
+
+// getWindowsVersion returns the Windows version string
+func getWindowsVersion() string {
+	version := windows.RtlGetVersion()
+	return fmt.Sprintf("%d.%d.%d", version.MajorVersion, version.MinorVersion, version.BuildNumber)
+}
+
+// createGuardPageWindows creates guard pages around sensitive memory
+func createGuardPageWindows(addr uintptr, size uintptr) error {
+	pageSize := uintptr(getPageSizeWindows())
+
+	// Create guard page before the memory region
+	guardBefore := addr - pageSize
+	err := setMemoryProtectionWindows(guardBefore, pageSize, windows.PAGE_GUARD|windows.PAGE_NOACCESS)
+	if err != nil {
+		return fmt.Errorf("failed to create guard page before: %w", err)
+	}
+
+	// Create guard page after the memory region
+	guardAfter := addr + size
+	err = setMemoryProtectionWindows(guardAfter, pageSize, windows.PAGE_GUARD|windows.PAGE_NOACCESS)
+	if err != nil {
+		return fmt.Errorf("failed to create guard page after: %w", err)
+	}
+
+	return nil
+}
+
+// enableDataExecutionPreventionWindows enables DEP for the current process
+func enableDataExecutionPreventionWindows() error {
+	currentProcess := windows.CurrentProcess()
+
+	// Set DEP policy to permanent enable
+	const PROCESS_DEP_ENABLE = 0x00000001
+	const PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION = 0x00000002
+
+	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+	procSetProcessDEPPolicy := kernel32.NewProc("SetProcessDEPPolicy")
+
+	if err := procSetProcessDEPPolicy.Find(); err == nil {
+		ret, _, _ := procSetProcessDEPPolicy.Call(uintptr(PROCESS_DEP_ENABLE | PROCESS_DEP_DISABLE_ATL_THUNK_EMULATION))
+		if ret == 0 {
+			return fmt.Errorf("failed to enable DEP")
+		}
+	}
+
+	return nil
+}
+
+// Platform-specific initialization
+func init() {
+	// Enable DEP if possible
+	_ = enableDataExecutionPreventionWindows()
+}
