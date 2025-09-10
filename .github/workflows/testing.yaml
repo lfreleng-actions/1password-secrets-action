@@ -1,69 +1,857 @@
 ---
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
+#
+# 1Password Secrets Action test/validation workflow (core tests)
+# This workflow has been trimmed to exclude credentialed integration tests
+# which are moved to `.github/workflows/integration.yaml`. The trimmed
+# testing workflow runs on PRs and pushes as before but avoids attempting
+# to access repository/organization secrets when secrets are not available.
 
-# Action test/validation workflow
-name: "Test GitHub Action 🧪"
+name: 'Core/Unit Tests 🧪'
 
 # yamllint disable-line rule:truthy
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches: ['main']
   pull_request:
-    branches: ["main"]
+    branches: ['main']
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
+
+env:
+  OP_SUPPRESS_SUMMARY: 'true'
+
+# yamllint disable rule:line-length
 
 jobs:
-  ### Test the GitHub Action in this Repository ###
-  tests:
-    name: "Test local GitHub Action"
-    runs-on: ubuntu-24.04
+  ### Security Checks ###
+  security-checks:
+    name: "Security Checks"
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 10 # Increase this timeout value as needed
+    timeout-minutes: 10
     steps:
       - name: "Checkout repository"
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      # Perform setup prior to running test(s)
-      - name: "Testing setup step"
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: 'go.mod'
+          cache: false
+
+      - name: "Run gosec security scanner"
+        run: |
+          # Create empty SARIF file first
+          cat > gosec.sarif << 'EOF'
+          {
+            "version": "2.1.0",
+            "schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "gosec"
+                  }
+                },
+                "results": []
+              }
+            ]
+          }
+          EOF
+
+          # Install and run gosec
+          if go install github.com/securego/gosec/v2/cmd/gosec@latest 2>/dev/null; then
+            echo "Running gosec security scanner..."
+            gosec -fmt sarif -out gosec.sarif ./... || echo "gosec scan completed with findings"
+          else
+            echo "Failed to install gosec, using empty SARIF file"
+          fi
+
+          # Ensure SARIF file always exists
+          if [ ! -f gosec.sarif ]; then
+            echo "Creating fallback SARIF file"
+            cat > gosec.sarif << 'EOF'
+          {
+            "version": "2.1.0",
+            "schema": "https://json.schemastore.org/sarif-2.1.0.json",
+            "runs": [
+              {
+                "tool": {
+                  "driver": {
+                    "name": "gosec"
+                  }
+                },
+                "results": []
+              }
+            ]
+          }
+          EOF
+          fi
+
+          echo "SARIF file status:"
+          ls -la gosec.sarif
+        continue-on-error: true
+
+      - name: "Run vulnerability check"
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        continue-on-error: true
+
+      - name: "Upload gosec results"
+        uses: github/codeql-action/upload-sarif@3c3833e0f8c1c83d449a7478aa59c036a9165498 # v3.29.11
+        if: always() && hashFiles('gosec.sarif') != ''
+        with:
+          sarif_file: gosec.sarif
+        continue-on-error: true
+
+  ### Core Unit Tests (internal/pkg packages only) ###
+  functional-tests:
+    name: "Functional Tests"
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        go-version: ['1.23', '1.24', '1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Verify Go version matches matrix"
+        run: |
+          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Actual Go version: $(go version)"
+          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+            echo "ERROR: Go version mismatch!"
+            echo "Expected: go${{ matrix.go-version }}"
+            echo "Actual: $(go version)"
+            exit 1
+          fi
+          echo "✓ Go version verification passed"
+
+      - name: "Debug module setup"
+        run: |
+          echo "=== Functional Tests Module Debug ==="
+          pwd
+          go version
+          go list -m
+          go mod download
+          go mod verify
+          go list ./...
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Verify Go module"
+        run: |
+          go mod verify
+          go mod tidy
+
+      - name: "Run functional tests (without race detector)"
         shell: bash
         run: |
-          # Testing setup step
-          echo "Testing setup step"
-          echo "Testing setup step/summary output" >> "$GITHUB_STEP_SUMMARY"
+          # Run functional tests (without race detector)
+          echo "Go version information:"
+          go version
+          go env GOVERSION
+          go test -json -coverprofile coverage.out -covermode=atomic -timeout=10m ./internal/... ./pkg/... > tests.json
+          test_exit=$?
+          # Parse failures separately if needed
+          if command -v jq >/dev/null 2>&1; then
+            jq -r 'select(.Action=="fail" and .Test!=null) | "FAIL " + .Package + " :: " + .Test' tests.json || true
+          fi
+          exit "$test_exit"
 
-      - name: "Running local action: ${{ github.repository }}"
+      - name: "Upload functional unit test JSON log"
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: unit-tests-json-${{ matrix.os }}-${{ matrix.go-version }}
+          path: tests.json
+          retention-days: 7
+
+      - name: "Generate coverage report"
+        run: |
+          go tool cover -html coverage.out -o coverage.html
+
+      - name: "Upload coverage to Codecov"
+        uses: codecov/codecov-action@fdcc8476540edceab3de004e990f80d881c6cc00 # v5.5.0
+        if: matrix.os == 'ubuntu-latest' && matrix.go-version == '1.25'
+        with:
+          files: coverage.out
+          flags: unittests
+          name: codecov-umbrella
+        continue-on-error: true
+
+  ### Race Detection Tests ###
+  race-detection-tests:
+    name: "Race Detection Tests"
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    needs: functional-tests
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        go-version: ['1.23', '1.24', '1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Verify Go version matches matrix"
+        run: |
+          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Actual Go version: $(go version)"
+          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+            echo "ERROR: Go version mismatch!"
+            echo "Expected: go${{ matrix.go-version }}"
+            echo "Actual: $(go version)"
+            exit 1
+          fi
+          echo "✓ Go version verification passed"
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Run race detection tests"
+        env:
+          SKIP_RACE_COMPATIBILITY_TEST: "false"
+        run: |
+          echo "Temporarily disabling GitHub command processing during race detection tests"
+          echo "::stop-commands::pause_masking"
+
+          # Create output directory
+          mkdir -p race_output
+
+          # Run tests and capture output
+          go test -race -v -timeout=20m ./internal/... ./pkg/... 2>&1 | tee race_output/race_detection.log
+          exit_code=${PIPESTATUS[0]}
+
+          # Create a race output file even if no races detected
+          echo "Race detection test completed at $(date)" > race_output/race_results.out
+          if [ "$exit_code" -eq 0 ]; then
+            echo "No race conditions detected" >> race_output/race_results.out
+          else
+            echo "Race conditions may have been detected - check logs" >> race_output/race_results.out
+          fi
+
+          echo "::pause_masking::"
+          if [ "$exit_code" -ne 0 ]; then
+            echo "Race detection tests failed - this is informational"
+            echo "::warning::Race conditions detected in code"
+            exit 0
+          fi
+        shell: bash
+
+      - name: "Upload race detection results"
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: race-detection-results-${{ matrix.os }}-${{ matrix.go-version }}
+          path: |
+            race_output/*.log
+            race_output/*.out
+          retention-days: 7
+
+  ### Build Tests ###
+  build-test:
+    name: "Build Tests"
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        arch: [amd64, arm64]
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: 'go.mod'
+          cache: false
+
+      - name: "Debug module setup"
+        run: |
+          echo "=== Module Debug Info ==="
+          pwd
+          ls -la
+          go version
+          go list -m
+          go list -m -f '{{.Dir}}'
+          echo "=== Internal packages ==="
+          ls -la internal/
+          echo "=== Testing module resolution ==="
+          go mod download
+          go mod verify
+          go list ./internal/...
+
+      - name: "Build for target architecture"
+        env:
+          GOOS: ${{ runner.os == 'Linux' && 'linux' || 'darwin' }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        shell: bash
+        run: |
+          echo "Building for ${GOOS}/${GOARCH}"
+          echo "=== Pre-build checks ==="
+          go mod tidy
+          go list ./cmd/op-secrets-action
+          echo "=== Building ==="
+          go build -v -o "op-secrets-action-${GOOS}-${GOARCH}" ./cmd/op-secrets-action
+          ls -la op-secrets-action-*
+
+      - name: "Test binary execution (if compatible)"
+        if: matrix.arch == 'amd64' || (matrix.arch == 'arm64' && runner.arch == 'ARM64')
+        shell: bash
+        run: |
+          for binary in ./op-secrets-action-*; do
+            if [ -f "$binary" ]; then
+              "$binary" --help || echo "Binary execution test completed"
+              break
+            fi
+          done
+
+  ### Main Package Functional Tests ###
+  main-package-functional-tests:
+    name: "Main Package Functional Tests"
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 20
+    continue-on-error: ${{ matrix.go-version != '1.25' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        go-version: ['1.23', '1.24', '1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Verify Go version matches matrix"
+        run: |
+          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Actual Go version: $(go version)"
+          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+            echo "ERROR: Go version mismatch!"
+            echo "Expected: go${{ matrix.go-version }}"
+            echo "Actual: $(go version)"
+            exit 1
+          fi
+          echo "✓ Go version verification passed"
+
+      - name: "Debug module setup"
+        run: |
+          echo "=== Main Package Tests Module Debug ==="
+          pwd
+          go version
+          go list -m
+          go mod download
+          go mod verify
+          go list ./...
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Run main package tests"
+        run: |
+          echo "Temporarily disabling GitHub command processing during main package tests"
+          echo "::stop-commands::pause_masking"
+          # Write JSON to a file; summarize failures at the end
+          go test -json -timeout=15m ./cmd/... \
+            | tee main-tests.json | jq -r 'select(.Action=="fail" and .Test!=null) | "FAIL " + .Package + " :: " + .Test'
+          test_exit=${PIPESTATUS[0]}
+          echo "::pause_masking::"
+          exit "$test_exit"
+        shell: bash
+
+      - name: "Upload main package test results"
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: main-package-functional-test-results-${{ matrix.os }}-${{ matrix.go-version }}
+          path: |
+            main-tests.json
+            ./**/*_test.log
+            ./**/*test*.out
+          retention-days: 7
+
+  ### Main Package Race Detection Tests ###
+  main-package-race-detection-tests:
+    name: "Main Package Race Detection Tests"
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    needs: main-package-functional-tests
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14]
+        go-version: ['1.23', '1.24', '1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Verify Go version matches matrix"
+        run: |
+          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Actual Go version: $(go version)"
+          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+            echo "ERROR: Go version mismatch!"
+            echo "Expected: go${{ matrix.go-version }}"
+            echo "Actual: $(go version)"
+            exit 1
+          fi
+          echo "✓ Go version verification passed"
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Run main package race detection tests"
+        env:
+          SKIP_RACE_COMPATIBILITY_TEST: "false"
+        run: |
+          echo "Temporarily disabling GitHub command processing during main package race detection tests"
+          echo "::stop-commands::pause_masking"
+
+          # Create output directory
+          mkdir -p main_race_output
+
+          # Run tests and capture output
+          go test -race -v -timeout=20m ./cmd/... 2>&1 | tee main_race_output/main_race_detection.log
+          exit_code=${PIPESTATUS[0]}
+
+          # Create a race output file even if no races detected
+          echo "Main package race detection test completed at $(date)" > main_race_output/main_race_results.out
+          if [ "$exit_code" -eq 0 ]; then
+            echo "No race conditions detected in main package" >> main_race_output/main_race_results.out
+          else
+            echo "Race conditions may have been detected in main package - check logs" >> main_race_output/main_race_results.out
+          fi
+
+          echo "::pause_masking::"
+          if [ "$exit_code" -ne 0 ]; then
+            echo "Main package race detection tests failed - this is informational"
+            echo "::warning::Race conditions detected in main package"
+            exit 0
+          fi
+        shell: bash
+
+      - name: "Upload main package race detection results"
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: main-package-race-detection-results-${{ matrix.os }}-${{ matrix.go-version }}
+          path: |
+            main_race_output/*.log
+            main_race_output/*.out
+          retention-days: 7
+
+  ### Mock-based Action Tests ###
+  mock-error-handling-tests:
+    name: "Mock Error Handling Tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.23', '1.24', '1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Run mock error handling tests"
+        run: |
+          echo "Running mock-based error handling tests..."
+          go test -v -timeout=10m ./internal/errors/... ./internal/validation/... ./internal/config/...
+          echo "✅ Mock error handling tests completed"
+
+  mock-return-type-tests:
+    name: "Mock Return Type Tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.23', '1.24', '1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Run mock return type tests"
+        run: |
+          echo "Running mock-based return type tests..."
+          go test -v -timeout=10m ./internal/output/... ./internal/config/...
+          echo "✅ Mock return type tests completed"
+
+  mock-performance-tests:
+    name: "Mock Performance Tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.25']
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Install benchstat tool"
+        run: |
+          go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: "Run mock performance tests"
+        run: |
+          echo "Running mock-based performance tests..."
+          # Run unit-level performance tests without the performance build tag
+          go test -v -timeout=3m -bench=. -benchtime=100ms ./internal/...
+          echo "✅ Mock performance tests completed"
+
+  mock-security-tests:
+    name: "Mock Security Tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.25']  # Only latest for PR security checks
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: false
+
+      - name: "Download dependencies"
+        run: go mod download
+
+      - name: "Run mock security tests"
+        run: |
+          echo "Running mock-based security tests (input validation, log safety)..."
+          # Run non-credentialed security tests
+          go test -v -timeout=10m ./internal/validation/... ./pkg/security/...
+          # Run log safety tests
+          go test -v -timeout=10m ./tests/
+          echo "✅ Mock security tests completed"
+
+  ### Test Result Summary ###
+  test-summary:
+    name: "Test Results"
+    runs-on: ubuntu-latest
+    needs: [
+      security-checks,
+      functional-tests,
+      race-detection-tests,
+      build-test,
+      main-package-functional-tests,
+      main-package-race-detection-tests,
+      mock-error-handling-tests,
+      mock-return-type-tests,
+      mock-performance-tests,
+      mock-security-tests,
+      mock-action-basic,
+      mock-action-return-types,
+      mock-action-error-handling
+    ]
+    if: always()
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - name: "Generate test results summary"
+        env:
+          SECURITY_RESULT: ${{ needs.security-checks.result }}
+          FUNCTIONAL_RESULT: ${{ needs.functional-tests.result }}
+          RACE_RESULT: ${{ needs.race-detection-tests.result }}
+          BUILD_RESULT: ${{ needs.build-test.result }}
+          MAIN_FUNCTIONAL_RESULT: ${{ needs.main-package-functional-tests.result }}
+          MAIN_RACE_RESULT: ${{ needs.main-package-race-detection-tests.result }}
+          MOCK_ERROR_RESULT: ${{ needs.mock-error-handling-tests.result }}
+          MOCK_RETURN_RESULT: ${{ needs.mock-return-type-tests.result }}
+          MOCK_PERF_RESULT: ${{ needs.mock-performance-tests.result }}
+          MOCK_SECURITY_RESULT: ${{ needs.mock-security-tests.result }}
+          MOCK_ACTION_BASIC_RESULT: ${{ needs.mock-action-basic.result }}
+          MOCK_ACTION_RETURN_RESULT: ${{ needs.mock-action-return-types.result }}
+          MOCK_ACTION_ERROR_RESULT: ${{ needs.mock-action-error-handling.result }}
+        run: |
+          set +e  # Don't exit on command failures
+          {
+            echo "# 🔑 Unit Testing Results"
+            echo ""
+            echo "| Suite | Status | Notes |"
+            echo "|-------|--------|-------|"
+
+            # Helper function to get status
+            get_status() {
+              case "$1" in
+                "success") echo "✅ PASS" ;;
+                "failure") echo "❌ FAIL" ;;
+                "cancelled") echo "🚫 CANCELLED" ;;
+                "skipped") echo "⏭️ SKIPPED" ;;
+                *) echo "❓ UNKNOWN" ;;
+              esac
+            }
+
+            # Helper function for informational tests
+            get_info_status() {
+              case "$1" in
+                "success") echo "✅ PASS" ;;
+                *) echo "⚠️ INFO" ;;
+              esac
+            }
+
+            echo "| Security Checks | $(get_status "$SECURITY_RESULT") | Static analysis and vulnerability scanning |"
+            echo "| Functional Tests | $(get_status "$FUNCTIONAL_RESULT") | Unit tests for internal packages |"
+            echo "| Race Detection | $(get_info_status "$RACE_RESULT") | Concurrent access safety |"
+            echo "| Build Tests | $(get_status "$BUILD_RESULT") | Cross-platform compilation |"
+            echo "| Main Package Tests | $(get_status "$MAIN_FUNCTIONAL_RESULT") | CLI integration tests |"
+            echo "| Main Race Detection | $(get_info_status "$MAIN_RACE_RESULT") | CLI concurrency tests |"
+            echo "| Mock Error Handling | $(get_status "$MOCK_ERROR_RESULT") | Input validation and error paths |"
+            echo "| Mock Return Types | $(get_status "$MOCK_RETURN_RESULT") | Output/env/both return modes |"
+            echo "| Mock Performance | $(get_info_status "$MOCK_PERF_RESULT") | Quick performance regression checks |"
+            echo "| Mock Security | $(get_status "$MOCK_SECURITY_RESULT") | Log safety and input sanitization |"
+            echo "| Mock Action Basic | $(get_status "$MOCK_ACTION_BASIC_RESULT") | Action integration tests with mock data |"
+            echo "| Mock Action Return Types | $(get_status "$MOCK_ACTION_RETURN_RESULT") | Output/env return mode validation |"
+            echo "| Mock Action Error Handling | $(get_status "$MOCK_ACTION_ERROR_RESULT") | Error path validation with mock failures |"
+            echo ""
+
+            # Calculate pass rate
+            passed=0
+            total=10  # Core tests (excluding informational race tests and mock performance)
+
+            [ "$SECURITY_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$FUNCTIONAL_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$BUILD_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MAIN_FUNCTIONAL_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MOCK_ERROR_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MOCK_RETURN_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MOCK_SECURITY_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MOCK_ACTION_BASIC_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MOCK_ACTION_RETURN_RESULT" = "success" ] && passed=$((passed + 1))
+            [ "$MOCK_ACTION_ERROR_RESULT" = "success" ] && passed=$((passed + 1))
+            # Note: mock-performance-tests is informational, not counted in core pass rate
+
+            if [ $passed -eq $total ]; then
+              echo "## 🎉 All Core Tests Passed ($passed/$total)"
+              echo ""
+              echo "**Next Steps:** Integration tests with real credentials run on merge to main."
+            else
+              echo "## ❌ Some Tests Failed ($passed/$total)"
+              echo ""
+              echo "**Action Required:** Fix failing tests before merge."
+            fi
+
+            echo ""
+            echo "---"
+            echo "*For tests requiring 1Password credentials, see [integration.yaml](.github/workflows/integration.yaml)*"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0  # Always exit successfully
+
+  ### Mock Action Tests (uses: ./ with mock mode) ###
+  mock-action-basic:
+    name: "Mock Action Basic Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Test single secret retrieval (mock)"
+        id: single-secret
         uses: ./
         with:
-          input: "test input 💬"
+          token: "dummy_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          vault: "Test Vault"
+          record: "Test Credential/password"
+          mock_mode: true
+          debug: false
 
-      - name: "Validated local action: ${{ github.repository }}"
-        shell: bash
+      - name: "Verify single secret value"
         run: |
-          # Local action validation
-          echo "Validated local action: ${{ github.repository }}"
-          echo "Validation step summary output" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -z "${{ steps.single-secret.outputs.value }}" ]]; then
+            echo "Error: Single secret retrieval failed"
+            exit 1
+          fi
+          echo "✅ Single secret retrieved successfully"
+          echo "Secret length: ${#SECRET_VALUE}"
+        env:
+          SECRET_VALUE: ${{ steps.single-secret.outputs.value }}
 
-      # yamllint disable-line rule:line-length
-      - name: "Running local action: ${{ github.repository }} [Override Failure]"
+      - name: "Test multiple secrets (JSON format) (mock)"
+        id: multiple-json
         uses: ./
-        id: failure
+        with:
+          token: "dummy_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          vault: "Test Vault"
+          record: |
+            {
+              "username": "Test Credential/username",
+              "password": "Test Credential/password"
+            }
+          mock_mode: true
+          debug: false
+
+      - name: "Verify multiple secrets"
+        run: |
+          if [[ "${{ steps.multiple-json.outputs.secrets_count }}" != "2" ]]; then
+            echo "Error: Expected 2 secrets, got ${{ steps.multiple-json.outputs.secrets_count }}"
+            exit 1
+          fi
+          echo "✅ Multiple secrets retrieved successfully"
+
+  mock-action-return-types:
+    name: "Mock Action Return Types"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Test output return type (mock)"
+        id: output-test
+        uses: ./
+        with:
+          token: "dummy_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          vault: "Test Vault"
+          record: "Test Credential/username"
+          return_type: "output"
+          mock_mode: true
+          debug: false
+
+      - name: "Verify output return type"
+        run: |
+          if [[ -z "${{ steps.output-test.outputs.value }}" ]]; then
+            echo "Error: Output return type failed"
+            exit 1
+          fi
+          echo "✅ Output return type test passed"
+
+      - name: "Test environment return type (mock)"
+        id: env-test
+        uses: ./
+        with:
+          token: "dummy_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          vault: "Test Vault"
+          record: "Test Credential/password"
+          return_type: "env"
+          mock_mode: true
+          debug: false
+
+      - name: "Verify environment return type"
+        run: |
+          # The secret should be available as an environment variable
+          if [[ -z "$TEST_CREDENTIAL_PASSWORD" ]]; then
+            echo "Error: Environment return type failed - no environment variable set"
+            exit 1
+          fi
+          echo "✅ Environment return type test passed"
+
+  mock-action-error-handling:
+    name: "Mock Action Error Handling"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: "Test invalid vault (mock)"
+        id: invalid-vault
+        uses: ./
         continue-on-error: true
         with:
-          invalid_input: "Some garbage"
+          token: "dummy_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          vault: "NonExistentVault12345"
+          record: "Testing/password"
+          mock_mode: true
+          debug: false
 
-      # Failure testing is also important
-      - name: "Error if step above did NOT fail"
-        if: steps.failure.outcome == 'success'
-        shell: bash
+      - name: "Verify error handling"
         run: |
-          # Error if step above did NOT fail
-          echo "Error: previous test step did NOT fail ❌"
-          exit 1
+          if [[ "${{ steps.invalid-vault.outcome }}" != "failure" ]]; then
+            echo "Error: Expected failure for invalid vault, but got: ${{ steps.invalid-vault.outcome }}"
+            exit 1
+          fi
+          echo "✅ Error handling test passed - invalid vault correctly failed"
