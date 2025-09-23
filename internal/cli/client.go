@@ -242,8 +242,8 @@ func (c *Client) GetSecret(ctx context.Context, vault, itemReference, fieldLabel
 		// If GetItem failed, fall back to op:// path below
 	}
 
-	// Fallback: Build the op:// item reference using the resolved vault NAME
-	itemRef := fmt.Sprintf("op://%s/%s/%s", vaultInfo.Name, itemReference, fieldLabel)
+	// Fallback: Build the op:// item reference using the resolved vault ID
+	itemRef := fmt.Sprintf("op://%s/%s/%s", vaultInfo.ID, itemReference, fieldLabel)
 	args := []string{"read", itemRef}
 
 	if validateErr := c.executor.ValidateArgs(args); validateErr != nil {
