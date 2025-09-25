@@ -3,10 +3,7 @@
 # SPDX-FileCopyrightText: 2025 The Linux Foundation
 
 name: "🔐 1Password Secrets Action"
-description: >-
-  Securely retrieve secrets from 1Password vaults for GitHub Actions
-  workflows. Builds locally for maximum compatibility across forks.
-author: "The Linux Foundation"
+description: 'Securely retrieves secrets from 1Password vaults'
 
 branding:
   icon: "lock"
@@ -82,6 +79,11 @@ inputs:
   cli_path:
     description: "Custom path to 1Password CLI binary"
     required: false
+
+  log_level:
+    description: "Log level: 'debug', 'info', 'warn', 'error'"
+    required: false
+    default: "warn"
 
   debug:
     description: "Enable debug logging"
@@ -224,6 +226,7 @@ runs:
         OP_CACHE_TTL: ${{ inputs.cache_ttl }}
         OP_CLI_VERSION: ${{ inputs.cli_version }}
         OP_CLI_PATH: ${{ inputs.cli_path }}
+        OP_LOG_LEVEL: ${{ inputs.log_level }}
         DEBUG: ${{ inputs.debug }}
         ACTION_DOWNLOAD_URL: ${{ inputs.download_url }}
         ACTION_CHECKSUM: ${{ inputs.checksum }}

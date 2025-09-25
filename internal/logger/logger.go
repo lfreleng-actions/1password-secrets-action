@@ -58,7 +58,7 @@ func DefaultConfig() Config {
 	inGitHubActions := isGitHubActions()
 
 	return Config{
-		Level:              slog.LevelInfo,
+		Level:              slog.LevelWarn,
 		Debug:              false,
 		LogFile:            "",
 		Format:             "json",
@@ -745,6 +745,61 @@ func ScrubValue(value string) string {
 		return fmt.Sprintf(redactedFormat, value[:2], value[len(value)-2:])
 	}
 	return value
+}
+
+// ParseLogLevel converts a string log level to slog.Level
+func ParseLogLevel(level string) slog.Level {
+	switch strings.ToLower(level) {
+	case "debug", "trace":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error", "err":
+		return slog.LevelError
+	default:
+		return slog.LevelWarn // Default to warn for invalid levels
+	}
+}
+
+// createHandlerOutput creates the appropriate output writer based on configuration
+func (l *Logger) createHandlerOutput() io.Writer {
+	if l.config.DisableStderr {
+		return io.Discard
+	}
+	return os.Stderr
+}
+
+// createHandlerOptions creates slog handler options with the given level
+func (l *Logger) createHandlerOptions(level slog.Level) *slog.HandlerOptions {
+	return &slog.HandlerOptions{
+		Level:     level,
+		AddSource: l.config.AddSource,
+	}
+}
+
+// SetLevel updates the logger's level
+func (l *Logger) SetLevel(level slog.Level) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Update the level in the handler if possible
+	output := l.createHandlerOutput()
+	options := l.createHandlerOptions(level)
+
+	if _, ok := l.logger.Handler().(*slog.JSONHandler); ok {
+		// We can't directly change the level of an existing handler,
+		// so we need to create a new one with the updated level
+		newHandler := slog.NewJSONHandler(output, options)
+		l.logger = slog.New(newHandler)
+	} else if _, ok := l.logger.Handler().(*slog.TextHandler); ok {
+		newHandler := slog.NewTextHandler(output, options)
+		l.logger = slog.New(newHandler)
+	}
+
+	// Update config level for consistency
+	l.config.Level = level
 }
 
 // LogOperationStart logs the start of an operation with context

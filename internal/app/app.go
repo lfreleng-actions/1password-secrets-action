@@ -66,7 +66,7 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 		cfg.MaxConcurrency = 5 // Default max concurrency
 	}
 	if cfg.LogLevel == "" {
-		cfg.LogLevel = "info" // Default log level
+		cfg.LogLevel = "warn" // Default log level
 	}
 
 	// Validate configuration before proceeding
