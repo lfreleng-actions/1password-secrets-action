@@ -82,7 +82,7 @@ var supportedVersionsCmd = &cobra.Command{
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Configuration management commands",
-	Long:  "Manage configuration files, profiles, and settings for the 1Password secrets action",
+	Long:  "Manage configuration files and settings for the 1Password secrets action",
 }
 
 var configValidateCmd = &cobra.Command{
@@ -142,34 +142,12 @@ var configInitCmd = &cobra.Command{
 
 var configListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List available configuration templates and profiles",
+	Short: "List available configuration templates",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		showTemplates, _ := cmd.Flags().GetBool("templates")
-		showProfiles, _ := cmd.Flags().GetBool("profiles")
-
-		if !showTemplates && !showProfiles {
-			showTemplates = true
-			showProfiles = true
-		}
-
-		if showTemplates {
-			fmt.Println("Available Templates:")
-			templates := config.ListTemplates()
-			for name, template := range templates {
-				fmt.Printf("  %-15s %s\n", name, template.Description)
-			}
-			fmt.Println()
-		}
-
-		if showProfiles {
-			fmt.Println("Available Profiles:")
-			profiles, err := config.ListProfiles()
-			if err != nil {
-				return fmt.Errorf(ErrFailedToListProfiles, err)
-			}
-			for _, profile := range profiles {
-				fmt.Printf("  %s\n", profile)
-			}
+		fmt.Println("Available Templates:")
+		templates := config.ListTemplates()
+		for _, template := range templates {
+			fmt.Printf("  %s - %s\n", template.Name, template.Description)
 		}
 
 		return nil
@@ -278,7 +256,6 @@ var (
 	flagVault             string
 	flagRecord            string
 	flagReturnType        string
-	flagProfile           string
 	flagConfigFile        string
 	flagTimeout           int
 	flagMaxConcurrency    int
@@ -310,10 +287,6 @@ func init() {
 	configInitCmd.Flags().StringP("output", "o", "", "Output path for configuration file")
 	configInitCmd.Flags().StringToStringP("variables", "v", nil, "Variables for template substitution (key=value)")
 
-	// Add flags for config list command
-	configListCmd.Flags().Bool("templates", false, "Show only templates")
-	configListCmd.Flags().Bool("profiles", false, "Show only profiles")
-
 	// Add flags for config export command
 	configExportCmd.Flags().StringP("format", "f", "yaml", "Export format (yaml, json)")
 
@@ -325,7 +298,6 @@ func init() {
 	rootCmd.Flags().StringVar(&flagVault, "vault", "", "Vault name or ID where secrets are stored (required)")
 	rootCmd.Flags().StringVar(&flagRecord, "record", "", "Secret specification: 'secret/field' or JSON/YAML for multiple (required)")
 	rootCmd.Flags().StringVar(&flagReturnType, "return-type", "output", "How to return values: 'output', 'env', or 'both'")
-	rootCmd.Flags().StringVar(&flagProfile, "profile", "", "Configuration profile to use (development, staging, production)")
 	rootCmd.Flags().StringVar(&flagConfigFile, "config", "", "Path to configuration file")
 	rootCmd.Flags().IntVar(&flagTimeout, "timeout", 0, "Operation timeout in seconds")
 	rootCmd.Flags().IntVar(&flagMaxConcurrency, "max-concurrency", 0, "Maximum concurrent operations")
@@ -352,8 +324,8 @@ func init() {
   # Set environment variables instead of outputs
   op-secrets-action --vault="my-vault" --record="secret/field" --return-type="env"
 
-  # Use production profile with custom timeout
-  op-secrets-action --profile="production" --timeout=180 --vault="my-vault" --record="secret/field"
+  # Use custom timeout
+  op-secrets-action --timeout=180 --vault="my-vault" --record="secret/field"
 
   # Use custom configuration file
   op-secrets-action --config="/path/to/config.yaml" --record="secret/field"
@@ -455,9 +427,6 @@ func validateAndSetupEnvironment() error {
 	// Set up other environment variables from flags
 	if flagReturnType != "" {
 		_ = os.Setenv(EnvInputReturnType, flagReturnType)
-	}
-	if flagProfile != "" {
-		_ = os.Setenv(EnvInputProfile, flagProfile)
 	}
 	if flagConfigFile != "" {
 		_ = os.Setenv(EnvInputConfigFile, flagConfigFile)

@@ -70,7 +70,6 @@ var configTemplates = map[string]Template{
 		Description: "Optimized configuration for production workloads",
 		Template: Config{
 			ReturnType:     ReturnTypeBoth,
-			Profile:        ProfileProduction,
 			LogLevel:       "warn",
 			Timeout:        300,
 			RetryTimeout:   30,
@@ -86,7 +85,6 @@ var configTemplates = map[string]Template{
 		Description: "Configuration for development and testing",
 		Template: Config{
 			ReturnType:     ReturnTypeOutput,
-			Profile:        ProfileDevelopment,
 			Debug:          true,
 			LogLevel:       "debug",
 			Timeout:        600,
@@ -252,12 +250,6 @@ func CompareConfigs(config1, config2 *Config) map[string]interface{} {
 		differences["return_type"] = map[string]string{
 			"config1": config1.ReturnType,
 			"config2": config2.ReturnType,
-		}
-	}
-	if config1.Profile != config2.Profile {
-		differences["profile"] = map[string]string{
-			"config1": config1.Profile,
-			"config2": config2.Profile,
 		}
 	}
 	if config1.Debug != config2.Debug {
@@ -578,9 +570,6 @@ func migrateV1ToV1_1(config *Config) error {
 	}
 	if config.CLIVersion == "" {
 		config.CLIVersion = "latest"
-	}
-	if config.Profile == "" {
-		config.Profile = ProfileDefault
 	}
 
 	return nil

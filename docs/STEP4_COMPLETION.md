@@ -264,7 +264,7 @@ vault, err := client.ResolveVault(ctx, "work-vault")
 1. **Advanced Caching** - LRU eviction and size management
 2. **Proxy Support** - HTTP/HTTPS proxy configuration
 3. **Metrics Collection** - Performance and usage monitoring
-4. **Configuration Profiles** - Environment-specific settings
+4. **Enhanced Configuration** - Additional configuration options
 
 ## ✅ Acceptance Criteria Met
 
