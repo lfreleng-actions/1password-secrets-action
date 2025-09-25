@@ -403,6 +403,12 @@ func runAction(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf(ErrConfigurationValidationFailed, err)
 	}
 
+	// Apply the config's LogLevel to the logger
+	if cfg.LogLevel != "" {
+		logLevel := logger.ParseLogLevel(cfg.LogLevel)
+		log.SetLevel(logLevel)
+	}
+
 	// Initialize the application
 	application, err := app.New(cfg, log)
 	if err != nil {

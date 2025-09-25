@@ -113,7 +113,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 		// Set defaults
 		ReturnType:     ReturnTypeOutput,
 		Debug:          false,
-		LogLevel:       "info",
+		LogLevel:       "warn",
 		Profile:        ProfileDefault,
 		Timeout:        300, // 5 minutes
 		RetryTimeout:   30,  // 30 seconds
@@ -623,7 +623,7 @@ func getBuiltinProfile(profileName string) *Config {
 		},
 		ProfileStaging: {
 			Debug:          false,
-			LogLevel:       "info",
+			LogLevel:       "warn",
 			CacheEnabled:   true,
 			MaxConcurrency: 5,
 			Timeout:        300, // 5 minutes

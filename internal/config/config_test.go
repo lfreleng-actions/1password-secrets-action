@@ -816,7 +816,7 @@ func TestConfigProfiles(t *testing.T) {
 			name:    "staging profile",
 			profile: ProfileStaging,
 			expected: func(c *Config) bool {
-				return !c.Debug && c.LogLevel == "info" && c.CacheEnabled && c.MaxConcurrency == 5
+				return !c.Debug && c.LogLevel == "warn" && c.CacheEnabled && c.MaxConcurrency == 5
 			},
 		},
 	}
