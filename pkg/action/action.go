@@ -575,7 +575,6 @@ func ConvertFromConfig(cfg *config.Config) *Config {
 		Vault:          cfg.Vault,
 		Record:         cfg.Record,
 		ReturnType:     cfg.ReturnType,
-		Profile:        cfg.Profile,
 		ConfigFile:     cfg.ConfigFile,
 		Timeout:        time.Duration(cfg.Timeout) * time.Second,
 		MaxConcurrency: cfg.MaxConcurrency,

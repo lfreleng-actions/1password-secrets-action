@@ -39,7 +39,6 @@ type Config struct {
 	// Operational settings
 	Debug      bool   `json:"debug" yaml:"debug"`
 	LogLevel   string `json:"log_level" yaml:"log_level"`
-	Profile    string `json:"profile" yaml:"profile"`
 	ConfigFile string `json:"config_file" yaml:"config_file"`
 	MockMode   bool   `json:"mock_mode" yaml:"mock_mode"`
 
@@ -63,9 +62,8 @@ type Config struct {
 	GitHubEnv       string `json:"github_env" yaml:"github_env"`
 
 	// Internal state
-	ConfigSource string            `json:"-" yaml:"-"`
-	LoadTime     time.Time         `json:"-" yaml:"-"`
-	Profiles     map[string]Config `json:"profiles,omitempty" yaml:"profiles,omitempty"`
+	ConfigSource string    `json:"-" yaml:"-"`
+	LoadTime     time.Time `json:"-" yaml:"-"`
 }
 
 // ReturnType constants
@@ -75,20 +73,11 @@ const (
 	ReturnTypeBoth   = "both"
 )
 
-// Profile constants
-const (
-	ProfileDevelopment = "development"
-	ProfileStaging     = "staging"
-	ProfileProduction  = "production"
-	ProfileDefault     = "default"
-)
-
 // Configuration file constants
 const (
-	ConfigDirName    = "op-secrets-action"
-	ConfigFileName   = "config.yaml"
-	ProfilesFileName = "profiles.yaml"
-	CacheFileName    = "cache.json"
+	ConfigDirName  = "op-secrets-action"
+	ConfigFileName = "config.yaml"
+	CacheFileName  = "cache.json"
 )
 
 // Validation is delegated to internal/validation.Validator
@@ -101,7 +90,6 @@ func Load() (*Config, error) {
 // LoadOptions provides options for loading configuration
 type LoadOptions struct {
 	ConfigFile   string
-	Profile      string
 	IgnoreEnv    bool
 	IgnoreFiles  bool
 	ValidateOnly bool
@@ -114,7 +102,6 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 		ReturnType:     ReturnTypeOutput,
 		Debug:          false,
 		LogLevel:       "warn",
-		Profile:        ProfileDefault,
 		Timeout:        300, // 5 minutes
 		RetryTimeout:   30,  // 30 seconds
 		ConnectTimeout: 10,  // 10 seconds
@@ -123,7 +110,6 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 		CacheTTL:       300, // 5 minutes
 		CLIVersion:     "latest",
 		Records:        make(map[string]string),
-		Profiles:       make(map[string]Config),
 		LoadTime:       time.Now(),
 		ConfigSource:   "defaults",
 	}
@@ -138,14 +124,6 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 	// Load from environment variables first
 	if !opts.IgnoreEnv {
 		config.loadFromEnvironment()
-	}
-
-	// Apply profile settings if specified (after environment, so profile can override)
-	if opts.Profile != "" {
-		config.Profile = opts.Profile
-	}
-	if err := config.applyProfile(); err != nil {
-		return nil, fmt.Errorf("failed to apply profile: %w", err)
 	}
 
 	// Apply final defaults
@@ -172,7 +150,7 @@ func LoadWithOptions(opts LoadOptions) (*Config, error) {
 // loadFromEnvironment loads configuration from environment variables
 func (c *Config) loadFromEnvironment() {
 	c.loadCoreInputsFromEnvironment()
-	c.loadProfileConfigFromEnvironment()
+	c.loadConfigFileFromEnvironment()
 	c.loadOperationalSettingsFromEnvironment()
 	c.loadTimeoutSettingsFromEnvironment()
 	c.loadPerformanceSettingsFromEnvironment()
@@ -200,11 +178,8 @@ func (c *Config) loadCoreInputsFromEnvironment() {
 	}
 }
 
-// loadProfileConfigFromEnvironment loads profile and configuration settings
-func (c *Config) loadProfileConfigFromEnvironment() {
-	if profile := getEnvOrInput("INPUT_PROFILE", "OP_PROFILE"); profile != "" {
-		c.Profile = profile
-	}
+// loadConfigFileFromEnvironment loads configuration file settings
+func (c *Config) loadConfigFileFromEnvironment() {
 	if configFile := getEnvOrInput("INPUT_CONFIG_FILE", "OP_CONFIG_FILE"); configFile != "" {
 		c.ConfigFile = configFile
 	}
@@ -354,55 +329,6 @@ func (c *Config) Save(configPath string) error {
 	return nil
 }
 
-// LoadProfile loads a specific profile configuration
-func LoadProfile(profileName string) (*Config, error) {
-	return LoadWithOptions(LoadOptions{
-		Profile: profileName,
-	})
-}
-
-// ListProfiles returns available configuration profiles
-func ListProfiles() ([]string, error) {
-	profiles := []string{ProfileDefault, ProfileDevelopment, ProfileStaging, ProfileProduction}
-
-	// Add profiles from file if it exists
-	profilesPath, err := getProfilesPath()
-	if err != nil {
-		return profiles, nil // Return built-in profiles only
-	}
-
-	if _, statErr := os.Stat(profilesPath); os.IsNotExist(statErr) {
-		return profiles, nil // Return built-in profiles only
-	}
-
-	data, err := os.ReadFile(profilesPath) // #nosec G304 - profiles path is validated
-	if err != nil {
-		return profiles, nil // Return built-in profiles only
-	}
-
-	var fileProfiles map[string]Config
-	if err := yaml.Unmarshal(data, &fileProfiles); err != nil {
-		return profiles, nil // Return built-in profiles only
-	}
-
-	// Add file-based profiles
-	for name := range fileProfiles {
-		// Avoid duplicates
-		found := false
-		for _, existing := range profiles {
-			if existing == name {
-				found = true
-				break
-			}
-		}
-		if !found {
-			profiles = append(profiles, name)
-		}
-	}
-
-	return profiles, nil
-}
-
 // GetCacheDir returns the cache directory path
 func GetCacheDir() (string, error) {
 	configDir, err := getConfigDir()
@@ -438,12 +364,10 @@ func (c *Config) Refresh() error {
 	// Save current critical values
 	currentToken := c.Token
 	currentConfigFile := c.ConfigFile
-	currentProfile := c.Profile
 
 	// Reload configuration
 	newConfig, err := LoadWithOptions(LoadOptions{
 		ConfigFile: currentConfigFile,
-		Profile:    currentProfile,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to refresh configuration: %w", err)
@@ -459,64 +383,18 @@ func (c *Config) Refresh() error {
 	return nil
 }
 
-// applyProfile applies profile-specific configuration
-func (c *Config) applyProfile() error {
-	if c.Profile == "" || c.Profile == ProfileDefault {
-		return nil
-	}
-
-	// Load profiles file if it exists
-	profilesPath, err := getProfilesPath()
-	if err != nil {
-		return err
-	}
-
-	if _, statErr := os.Stat(profilesPath); os.IsNotExist(statErr) {
-		// No profiles file, check built-in profiles
-		if profile := getBuiltinProfile(c.Profile); profile != nil {
-			c.mergeConfig(profile)
-			return nil
-		}
-		return fmt.Errorf("profile '%s' not found", c.Profile)
-	}
-
-	// Load profiles from file
-	data, err := os.ReadFile(profilesPath) // #nosec G304 - profiles path is validated
-	if err != nil {
-		return fmt.Errorf("failed to read profiles file: %w", err)
-	}
-
-	var profiles map[string]Config
-	if err := yaml.Unmarshal(data, &profiles); err != nil {
-		return fmt.Errorf("failed to parse profiles file: %w", err)
-	}
-
-	// Apply requested profile
-	if profile, exists := profiles[c.Profile]; exists {
-		c.mergeConfig(&profile)
-		return nil
-	}
-
-	return fmt.Errorf("profile '%s' not found in profiles file", c.Profile)
-}
-
 // applyFinalDefaults applies final defaults and environment-specific settings
 func (c *Config) applyFinalDefaults() {
 	// Apply defaults for empty values
 	if c.ReturnType == "" {
 		c.ReturnType = ReturnTypeOutput
 	}
-	if c.Profile == "" {
-		c.Profile = ProfileDefault
-	}
 
-	// GitHub Actions debug mode (only if not explicitly set by profile)
+	// Apply debug environment override
 	if os.Getenv("DEBUG") == "true" || os.Getenv("RUNNER_DEBUG") == "1" {
-		if c.Profile == ProfileDefault || c.Profile == ProfileDevelopment {
-			c.Debug = true
-			if c.LogLevel == "info" {
-				c.LogLevel = "debug"
-			}
+		c.Debug = true
+		if c.LogLevel == "info" {
+			c.LogLevel = "debug"
 		}
 	}
 }
@@ -527,7 +405,7 @@ func (c *Config) mergeConfig(other *Config) {
 		return
 	}
 
-	// Merge all non-zero values from other config (profile overrides current)
+	// Merge all non-zero values from other config (other overrides current)
 	if other.Token != "" {
 		c.Token = other.Token
 	}
@@ -569,7 +447,7 @@ func (c *Config) mergeConfig(other *Config) {
 		c.CacheTTL = other.CacheTTL
 	}
 
-	// Merge boolean settings (profile can override)
+	// Merge boolean settings (other can override)
 	c.Debug = other.Debug
 	c.CacheEnabled = other.CacheEnabled
 }
@@ -593,15 +471,6 @@ func getDefaultConfigPath() (string, error) {
 	return filepath.Join(configDir, ConfigFileName), nil
 }
 
-// getProfilesPath returns the profiles file path
-func getProfilesPath() (string, error) {
-	configDir, err := getConfigDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(configDir, ProfilesFileName), nil
-}
-
 // getConfigDir returns the configuration directory path
 var getConfigDir = func() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -609,34 +478,6 @@ var getConfigDir = func() (string, error) {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	return filepath.Join(homeDir, ".config", ConfigDirName), nil
-}
-
-// getBuiltinProfile returns a built-in profile configuration
-func getBuiltinProfile(profileName string) *Config {
-	profiles := map[string]*Config{
-		ProfileDevelopment: {
-			Debug:          true,
-			LogLevel:       "debug",
-			CacheEnabled:   false,
-			MaxConcurrency: 10,
-			Timeout:        600, // 10 minutes
-		},
-		ProfileStaging: {
-			Debug:          false,
-			LogLevel:       "warn",
-			CacheEnabled:   true,
-			MaxConcurrency: 5,
-			Timeout:        300, // 5 minutes
-		},
-		ProfileProduction: {
-			Debug:          false,
-			LogLevel:       "warn",
-			CacheEnabled:   true,
-			MaxConcurrency: 3,
-			Timeout:        300, // 5 minutes
-		},
-	}
-	return profiles[profileName]
 }
 
 // Validate performs comprehensive validation of the configuration
@@ -658,9 +499,6 @@ func (c *Config) Validate() error {
 	}
 
 	// Retain existing non-duplicate validations
-	if err := c.validateProfile(); err != nil {
-		return err
-	}
 	if err := c.validateTimeoutSettings(); err != nil {
 		return err
 	}
@@ -674,20 +512,6 @@ func (c *Config) Validate() error {
 		return err
 	}
 	return nil
-}
-
-// validateProfile validates the profile setting
-func (c *Config) validateProfile() error {
-	if c.Profile == "" {
-		return nil
-	}
-	validProfiles := []string{ProfileDefault, ProfileDevelopment, ProfileStaging, ProfileProduction}
-	for _, p := range validProfiles {
-		if c.Profile == p {
-			return nil
-		}
-	}
-	return fmt.Errorf("invalid profile: must be one of %v", validProfiles)
 }
 
 // validateTimeoutSettings validates timeout-related settings
@@ -805,7 +629,6 @@ func (c *Config) SanitizeForLogging() map[string]interface{} {
 	return map[string]interface{}{
 		"vault":            "[REDACTED]",
 		"return_type":      c.ReturnType,
-		"profile":          c.Profile,
 		"debug":            c.Debug,
 		"log_level":        c.LogLevel,
 		"timeout":          c.Timeout,
