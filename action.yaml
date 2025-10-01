@@ -13,11 +13,9 @@ inputs:
   token:
     description: "1Password service account token"
     required: true
-
   vault:
     description: "Vault name or ID where secrets are stored"
     required: true
-
   record:
     description: |
       Secret specification in one of these formats:
@@ -30,11 +28,6 @@ inputs:
     description: "How to return values: 'output' (default), 'env', or 'both'"
     required: false
     default: "output"
-
-  profile:
-    description: >-
-      Configuration profile to use (development, staging, production)
-    required: false
 
   config_file:
     description: "Path to configuration file"
@@ -91,16 +84,16 @@ inputs:
     default: "false"
 
   mock_mode:
-    description: "Enable mock mode for testing (replaces live 1Password CLI with deterministic mock responses)"
+    description: "Enable mock mode for testing"
     required: false
     default: "false"
 
   download_url:
-    description: "Custom download URL for the op-secrets-action binary (optional, builds locally by default)"
+    description: "Custom download URL for the op-secrets-action binary"
     required: false
 
   checksum:
-    description: "Expected SHA256 checksum for the custom binary (required when using download_url)"
+    description: "Expected SHA256 checksum for the op-secrets-action binary"
     required: false
 
 outputs:
@@ -200,7 +193,6 @@ runs:
         # vault and record are passed via environment variables to avoid shell escaping issues with multiline JSON
         ./"${BINARY_NAME}" \
           $([ -n "${{ inputs.return_type }}" ] && echo "--return-type=${{ inputs.return_type }}") \
-          $([ -n "${{ inputs.profile }}" ] && echo "--profile=${{ inputs.profile }}") \
           $([ -n "${{ inputs.config_file }}" ] && echo "--config=${{ inputs.config_file }}") \
           $([ -n "${{ inputs.timeout }}" ] && echo "--timeout=${{ inputs.timeout }}") \
           $([ -n "${{ inputs.max_concurrency }}" ] && echo "--max-concurrency=${{ inputs.max_concurrency }}") \
@@ -216,7 +208,6 @@ runs:
         OP_VAULT: ${{ inputs.vault }}
         OP_RECORD: ${{ inputs.record }}
         OP_RETURN_TYPE: ${{ inputs.return_type }}
-        OP_PROFILE: ${{ inputs.profile }}
         OP_CONFIG_FILE: ${{ inputs.config_file }}
         OP_TIMEOUT: ${{ inputs.timeout }}
         OP_RETRY_TIMEOUT: ${{ inputs.retry_timeout }}

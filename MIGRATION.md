@@ -29,6 +29,50 @@ in existing 1Password GitHub Actions:
 | `unfor19/1password-action` | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
 | Custom 1Password integrations | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
 
+## Breaking Changes
+
+### Profile Functionality Removed
+
+**⚠️ Breaking Change**: The `profile` input and related profile functionality
+has been completely removed as of the next major version.
+
+**What was removed:**
+
+- `profile` input in GitHub Actions workflows
+- `--profile` CLI flag
+- Built-in profiles (`development`, `staging`, `production`, `default`)
+- Profile-based configuration loading
+- `profiles.yaml` configuration file support
+
+**Migration required:**
+If you were using the `profile` input, you must replace it with explicit configuration:
+
+```yaml
+# OLD (no longer works)
+- uses: lfreleng-actions/1password-secrets-action@v1
+  with:
+    token: ${{ secrets.OP_TOKEN }}
+    vault: "my-vault"
+    record: "secret/field"
+    profile: "production"  # ❌ REMOVED
+
+# NEW (explicit configuration)
+- uses: lfreleng-actions/1password-secrets-action@v1
+  with:
+    token: ${{ secrets.OP_TOKEN }}
+    vault: "my-vault"
+    record: "secret/field"
+    cache_enabled: true    # ✅ Set explicitly
+    max_concurrency: 3     # ✅ Set explicitly
+    log_level: "warn"      # ✅ Set explicitly
+```
+
+**Profile equivalents:**
+
+- `development`: `debug: true`, `log_level: debug`, `cache_enabled: false`, `max_concurrency: 10`, `timeout: 600`
+- `staging`: `debug: false`, `log_level: warn`, `cache_enabled: true`, `max_concurrency: 5`, `timeout: 300`
+- `production`: `debug: false`, `log_level: warn`, `cache_enabled: true`, `max_concurrency: 3`, `timeout: 300`
+
 ## Migration from `1password/load-secrets-action`
 
 ### Basic Secret Loading

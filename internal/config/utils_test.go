@@ -151,9 +151,6 @@ func TestCreateConfigFromTemplate(t *testing.T) {
 					return err
 				}
 
-				if config.Profile != ProfileProduction {
-					return fmt.Errorf("expected profile %s, got %s", ProfileProduction, config.Profile)
-				}
 				if !config.CacheEnabled {
 					return fmt.Errorf("expected cache to be enabled for production")
 				}
@@ -536,7 +533,6 @@ func TestCleanupOldConfigs(t *testing.T) {
 		{"config.yaml", 0, false},                                 // Current config
 		{"config.yaml.20240101-120000.bak", time.Hour * 25, true}, // Old backup
 		{"config.yaml.20240102-120000.bak", time.Hour * 1, true},  // Recent backup
-		{"profiles.yaml.old", time.Hour * 25, true},               // Old backup
 		{"cache.json", 0, false},                                  // Current cache
 		{"random.txt", time.Hour * 25, false},                     // Not a backup
 	}
@@ -591,8 +587,8 @@ func TestCleanupOldConfigs(t *testing.T) {
 	}
 
 	// Verify the right number of files were cleaned
-	if cleaned != 2 {
-		t.Errorf("Expected to clean 2 files, cleaned %d", cleaned)
+	if cleaned != 1 {
+		t.Errorf("Expected to clean 1 files, cleaned %d", cleaned)
 	}
 
 	// Check which files remain
@@ -753,7 +749,6 @@ func TestMigrateV1ToV1_1(t *testing.T) {
 		"MaxConcurrency": 5,
 		"CacheTTL":       300,
 		"CLIVersion":     "latest",
-		"Profile":        ProfileDefault,
 	}
 
 	configValues := map[string]interface{}{
@@ -762,7 +757,6 @@ func TestMigrateV1ToV1_1(t *testing.T) {
 		"MaxConcurrency": config.MaxConcurrency,
 		"CacheTTL":       config.CacheTTL,
 		"CLIVersion":     config.CLIVersion,
-		"Profile":        config.Profile,
 	}
 
 	for field, expected := range expectedDefaults {

@@ -24,7 +24,6 @@ func TestLoad(t *testing.T) {
 		"INPUT_VAULT":           os.Getenv("INPUT_VAULT"),
 		"INPUT_RECORD":          os.Getenv("INPUT_RECORD"),
 		"INPUT_RETURN_TYPE":     os.Getenv("INPUT_RETURN_TYPE"),
-		"INPUT_PROFILE":         os.Getenv("INPUT_PROFILE"),
 		"INPUT_TIMEOUT":         os.Getenv("INPUT_TIMEOUT"),
 		"INPUT_MAX_CONCURRENCY": os.Getenv("INPUT_MAX_CONCURRENCY"),
 		"DEBUG":                 os.Getenv("DEBUG"),
@@ -736,25 +735,6 @@ func TestLoadWithOptions(t *testing.T) {
 			wantErr: true, // Should fail because required fields not set
 		},
 		{
-			name: "specific profile",
-			opts: LoadOptions{Profile: ProfileDevelopment},
-			setup: func() {
-				_ = os.Setenv("INPUT_TOKEN", testdata.GetValidDummyToken())
-				_ = os.Setenv("INPUT_VAULT", "test-vault")
-				_ = os.Setenv("INPUT_RECORD", "secret/field")
-			},
-			wantErr: false,
-			validate: func(c *Config) error {
-				if c.Profile != ProfileDevelopment {
-					return fmt.Errorf("expected profile %s, got %s", ProfileDevelopment, c.Profile)
-				}
-				if !c.Debug {
-					return fmt.Errorf("expected debug to be true for development profile")
-				}
-				return nil
-			},
-		},
-		{
 			name: "validate only",
 			opts: LoadOptions{ValidateOnly: true},
 			setup: func() {
@@ -769,7 +749,7 @@ func TestLoadWithOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear environment
-			for _, key := range []string{"INPUT_TOKEN", "INPUT_VAULT", "INPUT_RECORD", "INPUT_PROFILE"} {
+			for _, key := range []string{"INPUT_TOKEN", "INPUT_VAULT", "INPUT_RECORD"} {
 				_ = os.Unsetenv(key)
 			}
 
@@ -787,53 +767,6 @@ func TestLoadWithOptions(t *testing.T) {
 				if err := tt.validate(config); err != nil {
 					t.Errorf("validation failed: %v", err)
 				}
-			}
-		})
-	}
-}
-
-func TestConfigProfiles(t *testing.T) {
-	tests := []struct {
-		name     string
-		profile  string
-		expected func(*Config) bool
-	}{
-		{
-			name:    "development profile",
-			profile: ProfileDevelopment,
-			expected: func(c *Config) bool {
-				return c.Debug && c.LogLevel == debugLevel && c.MaxConcurrency == 10 && c.Timeout == 600
-			},
-		},
-		{
-			name:    "production profile",
-			profile: ProfileProduction,
-			expected: func(c *Config) bool {
-				return !c.Debug && c.LogLevel == "warn" && c.CacheEnabled && c.MaxConcurrency == 3
-			},
-		},
-		{
-			name:    "staging profile",
-			profile: ProfileStaging,
-			expected: func(c *Config) bool {
-				return !c.Debug && c.LogLevel == "warn" && c.CacheEnabled && c.MaxConcurrency == 5
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_ = os.Setenv("INPUT_TOKEN", testdata.GetValidDummyToken())
-			_ = os.Setenv("INPUT_VAULT", "test-vault")
-			_ = os.Setenv("INPUT_RECORD", "secret/field")
-
-			config, err := LoadProfile(tt.profile)
-			if err != nil {
-				t.Fatalf("LoadProfile() error = %v", err)
-			}
-
-			if !tt.expected(config) {
-				t.Errorf("Profile %s did not match expected configuration. Debug: %+v", tt.profile, config.SanitizeForLogging())
 			}
 		})
 	}
@@ -901,23 +834,6 @@ func TestValidateEnhanced(t *testing.T) {
 		wantErr bool
 		errMsg  string
 	}{
-		{
-			name: "invalid profile",
-			config: Config{
-				Token:          testdata.GetValidDummyToken(),
-				Vault:          "test-vault",
-				Record:         "secret/field",
-				ReturnType:     ReturnTypeOutput,
-				Profile:        "invalid-profile",
-				Timeout:        300,
-				RetryTimeout:   30,
-				ConnectTimeout: 10,
-				MaxConcurrency: 5,
-				CLIVersion:     "latest",
-			},
-			wantErr: true,
-			errMsg:  "invalid profile",
-		},
 		{
 			name: "invalid retry timeout",
 			config: Config{
@@ -1005,7 +921,6 @@ func TestSanitizeForLoggingEnhanced(t *testing.T) {
 		Vault:          "test-vault",
 		Record:         "secret/field",
 		ReturnType:     ReturnTypeOutput,
-		Profile:        ProfileProduction,
 		Debug:          false,
 		LogLevel:       "info",
 		Timeout:        300,
@@ -1029,7 +944,7 @@ func TestSanitizeForLoggingEnhanced(t *testing.T) {
 
 	// Check that safe data is present
 	expectedFields := []string{
-		"vault", "return_type", "profile", "debug", "log_level",
+		"vault", "return_type", "debug", "log_level",
 		"timeout", "retry_timeout", "connect_timeout", "max_concurrency",
 		"cache_enabled", "cache_ttl", "cli_version", "config_source",
 	}
@@ -1080,26 +995,5 @@ func TestIsGitHubActions(t *testing.T) {
 				t.Errorf("IsGitHubActions() = %v, want %v", config.IsGitHubActions(), tt.expected)
 			}
 		})
-	}
-}
-
-func TestListProfiles(t *testing.T) {
-	profiles, err := ListProfiles()
-	if err != nil {
-		t.Fatalf("ListProfiles() error = %v", err)
-	}
-
-	expectedProfiles := []string{ProfileDefault, ProfileDevelopment, ProfileStaging, ProfileProduction}
-	for _, expected := range expectedProfiles {
-		found := false
-		for _, profile := range profiles {
-			if profile == expected {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Expected profile %s not found in list", expected)
-		}
 	}
 }

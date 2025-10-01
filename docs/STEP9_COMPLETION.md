@@ -17,10 +17,9 @@ framework.
 ### 1. Configuration Loading System ✅
 
 - **Enhanced Loading**: `config.Load()` and `config.LoadWithOptions()` functions with flexible loading options
-- **Multiple Sources**: Environment variables, CLI flags, configuration files, and profiles
-- **Intelligent Precedence**: CLI flags > environment variables > profiles > config files > defaults
+- **Multiple Sources**: Environment variables, CLI flags, and configuration files
+- **Intelligent Precedence**: CLI flags > environment variables > config files > defaults
 - **File Support**: YAML configuration files with automatic discovery at `~/.config/op-secrets-action/config.yaml`
-- **Profile System**: Built-in profiles (development, staging, production) with custom profile support
 
 ### 2. Environment Variable Management ✅
 
@@ -32,7 +31,6 @@ framework.
 ### 3. Default Value Handling ✅
 
 - **Secure Defaults**: All optional parameters have secure, production-ready defaults
-- **Profile-Based Defaults**: Different default sets for development, staging, and production environments
 - **Context-Aware Defaults**: Defaults adapt based on detected environment (GitHub Actions, local development)
 - **Timeout Management**: Granular timeout settings with sensible defaults
 
@@ -62,7 +60,6 @@ framework.
 
 ### 7. Advanced Configuration Features 🆕
 
-- **Profile System**: Built-in and custom configuration profiles
 - **Variable Substitution**: Template variable substitution for dynamic configurations
 - **Configuration Comparison**: Tools to compare different configurations
 - **Validation Tools**: Standalone configuration file validation
@@ -73,7 +70,7 @@ framework.
 - **Configuration Commands**: Complete CLI interface for configuration management
   - `config init [template]` - Initialize new configuration
   - `config validate [file]` - Validate configuration files
-  - `config list` - List available templates and profiles
+  - `config list` - List available templates
   - `config export [file]` - Export current configuration
   - `config import <file>` - Import configuration from file
   - `config migrate [file]` - Migrate configuration to latest format
@@ -82,7 +79,6 @@ framework.
 ### 9. Enhanced Input Support 🆕
 
 - **Extended Parameters**: Support for advanced configuration options:
-  - `profile` - Configuration profile selection
   - `config_file` - Custom configuration file path
   - `timeout` - Operation timeout
   - `retry_timeout` - Retry operation timeout
@@ -117,19 +113,8 @@ internal/config/
 #### Loading System
 
 - **Multi-Source Loading**: Intelligent loading from multiple sources
-- **Profile Application**: Profile-based configuration overlay system
 - **Environment Detection**: Automatic environment-specific behavior
 - **Validation Integration**: Comprehensive validation with clear error messages
-
-#### Profile System
-
-```go
-// Built-in profiles
-ProfileDefault     = "default"      // Basic configuration
-ProfileDevelopment = "development"  // Debug enabled, extended timeouts
-ProfileStaging     = "staging"      // Balanced configuration
-ProfileProduction  = "production"   // Conservative, cache-enabled
-```
 
 #### Utility Functions
 
@@ -151,7 +136,6 @@ ProfileProduction  = "production"   // Conservative, cache-enabled
 
 - **Configuration Loading**: All loading scenarios and edge cases
 - **Validation**: All validation rules and error conditions
-- **Profile System**: Profile loading and application
 - **File Operations**: File I/O, migration, and backup operations
 - **CLI Integration**: Command-line interface testing
 - **Utility Functions**: Template, comparison, and migration tools
@@ -185,7 +169,6 @@ if err != nil {
 
 // Load with specific options
 config, err := config.LoadWithOptions(config.LoadOptions{
-    Profile:    "production",
     ConfigFile: "/custom/path/config.yaml",
 })
 ```
@@ -199,14 +182,14 @@ op-secrets-action config init production
 # Validate configuration
 op-secrets-action config validate
 
-# List available templates and profiles
+# List available templates
 op-secrets-action config list
 
 # Export configuration to JSON
 op-secrets-action config export --format=json config.json
 
-# Use specific profile with custom settings
-op-secrets-action --profile=production --timeout=180 \
+# Use custom timeout settings
+op-secrets-action --timeout=180 \
   --vault="my-vault" --record="secret/field"
 ```
 
@@ -223,7 +206,6 @@ op-secrets-action --profile=production --timeout=180 \
         "db_password": "database/password",
         "api_key": "api/key"
       }
-    profile: production
     timeout: 180
     max_concurrency: 3
     cache_enabled: true
@@ -298,7 +280,6 @@ op-secrets-action --profile=production --timeout=180 \
 
 - **Remote Configuration**: Support for remote configuration sources
 - **Configuration Encryption**: Encrypted configuration file support
-- **Advanced Profiles**: User-defined profile inheritance
 - **Configuration Validation**: Schema-based validation
 
 ### Extension Points
@@ -315,7 +296,7 @@ Step 9 has been completed with a comprehensive configuration and environment man
 1. **Robust Configuration Loading** with multiple sources and intelligent precedence
 2. **Flexible Environment Management** with GitHub Actions and local development support
 3. **Comprehensive Validation** with detailed error reporting
-4. **Advanced Features** including profiles, templates, and migration tools
+4. **Advanced Features** including templates and migration tools
 5. **Security-First Design** with secure defaults and data protection
 6. **Extensive Testing** with >95% coverage and comprehensive scenarios
 7. **Production-Ready** with performance optimization and monitoring
