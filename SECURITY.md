@@ -207,9 +207,9 @@ Our security test suite validates:
 
 We provide security updates for the following versions:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x.x   | ✅ Full support    |
+| Version | Supported             |
+| ------- | --------------------- |
+| 1.x.x   | ✅ Full support        |
 | 0.x.x   | ❌ No longer supported |
 
 ### Security Update Process
