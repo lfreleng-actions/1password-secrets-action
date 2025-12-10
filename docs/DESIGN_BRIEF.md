@@ -26,12 +26,16 @@ vulnerabilities identified in existing 1Password GitHub Actions.
 
 ### Inputs
 
+<!-- markdownlint-disable MD013 -->
+
 | Input         | Required | Description                                                   |
 | ------------- | -------- | ------------------------------------------------------------- |
 | `token`       | Yes      | 1Password service account token                               |
 | `vault`       | Yes      | Vault name or ID (handled intelligently)                      |
 | `return_type` | No       | How values are returned: `output` (default), `env`, or `both` |
 | `record`      | Yes      | Secret specification (see Record Format below)                |
+
+<!-- markdownlint-enable MD013 -->
 
 ### Record Format Specification
 

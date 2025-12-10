@@ -65,6 +65,8 @@ Benchmarks run on GitHub Actions standard runners:
 
 #### Concurrent Processing (Default: 5 concurrent)
 
+<!-- markdownlint-disable MD013 -->
+
 | Secret Count | Average Time | P95 Time | Memory Peak | Notes                   |
 | ------------ | ------------ | -------- | ----------- | ----------------------- |
 | 1 secret     | 1.2s         | 2.1s     | 8MB         | Baseline                |
@@ -72,6 +74,8 @@ Benchmarks run on GitHub Actions standard runners:
 | 10 secrets   | 3.4s         | 4.8s     | 18MB        | Good performance        |
 | 25 secrets   | 6.7s         | 9.2s     | 28MB        | Acceptable              |
 | 50 secrets   | 12.3s        | 16.8s    | 45MB        | Upper limit recommended |
+
+<!-- markdownlint-enable MD013 -->
 
 #### Sequential vs Parallel Comparison
 

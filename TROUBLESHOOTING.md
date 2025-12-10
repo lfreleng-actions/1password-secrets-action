@@ -840,20 +840,30 @@ grep -i "memory\|oom\|killed" action.log
 
 ### Authentication Errors
 
+<!-- markdownlint-disable MD013 -->
+
 | Error                                  | Meaning                            | Solution                                       |
 | -------------------------------------- | ---------------------------------- | ---------------------------------------------- |
 | `Invalid service account token format` | Token format is wrong              | Use service account token starting with "ops_" |
 | `Authentication failed`                | Token is invalid or expired        | Check token validity and permissions           |
 | `Insufficient permissions`             | Service account lacks vault access | Grant vault access to service account          |
 
+<!-- markdownlint-enable MD013 -->
+
 ### Vault Errors
+
+<!-- markdownlint-disable MD013 -->
 
 | Error                 | Meaning                          | Solution                            |
 | --------------------- | -------------------------------- | ----------------------------------- |
 | `Vault not found`     | Vault doesn't exist or no access | Check vault name/ID and permissions |
 | `Vault access denied` | No permission to access vault    | Grant read access to vault          |
 
+<!-- markdownlint-enable MD013 -->
+
 ### Secret Errors
+
+<!-- markdownlint-disable MD013 -->
 
 | Error                  | Meaning                        | Solution                    |
 | ---------------------- | ------------------------------ | --------------------------- |
@@ -861,7 +871,11 @@ grep -i "memory\|oom\|killed" action.log
 | `Several items found`  | Item name is not unique        | Use item ID instead of name |
 | `Field not accessible` | Field exists but can't be read | Check field permissions     |
 
+<!-- markdownlint-enable MD013 -->
+
 ### Format Errors
+
+<!-- markdownlint-disable MD013 -->
 
 | Error                   | Meaning                | Solution                          |
 | ----------------------- | ---------------------- | --------------------------------- |
@@ -869,13 +883,19 @@ grep -i "memory\|oom\|killed" action.log
 | `JSON parsing failed`   | Invalid JSON in record | Validate JSON format              |
 | `YAML parsing failed`   | Invalid YAML in record | Check YAML indentation and syntax |
 
+<!-- markdownlint-enable MD013 -->
+
 ### Network Errors
+
+<!-- markdownlint-disable MD013 -->
 
 | Error                     | Meaning                      | Solution                              |
 | ------------------------- | ---------------------------- | ------------------------------------- |
 | `Connection timeout`      | Network connectivity issue   | Increase timeouts, check connectivity |
 | `SSL verification failed` | Certificate validation issue | Check system time, update CA certs    |
 | `Rate limit exceeded`     | Too numerous API requests    | Reduce concurrency, add delays        |
+
+<!-- markdownlint-enable MD013 -->
 
 ## Getting Help
 

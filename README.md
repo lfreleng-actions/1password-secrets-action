@@ -113,10 +113,14 @@ steps:
 
 ### Batch Secrets Mode
 
+<!-- markdownlint-disable MD013 -->
+
 | Name            | Description                                                   |
 | --------------- | ------------------------------------------------------------- |
 | `secrets_count` | Number of secrets retrieved                                   |
 | `<key>`         | Individual secret values using keys from record specification |
+
+<!-- markdownlint-enable MD013 -->
 
 ## Record Format
 
