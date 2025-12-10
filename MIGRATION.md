@@ -22,12 +22,12 @@ in existing 1Password GitHub Actions:
 
 ## Quick Migration Reference
 
-| From | To | Status |
-|------|----|----|
-| `1password/load-secrets-action` | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
+| From                                | To                                          | Status      |
+| ----------------------------------- | ------------------------------------------- | ----------- |
+| `1password/load-secrets-action`     | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
 | `RobotsAndPencils/1password-action` | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
-| `unfor19/1password-action` | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
-| Custom 1Password integrations | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
+| `unfor19/1password-action`          | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
+| Custom 1Password integrations       | `lfreleng-actions/1password-secrets-action` | ✅ Supported |
 
 ## Breaking Changes
 
