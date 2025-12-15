@@ -346,13 +346,13 @@ improvements to create a secure, maintainable solution.
 
 ### Risk Assessment Summary
 
-| Category | Risk Level | Issues | Priority |
-|----------|------------|---------|----------|
-| Binary Security | Critical | 2 | Immediate |
-| Input Validation | High | 3 | Immediate |
-| Architecture | Medium | 4 | Short-term |
-| Testing | Medium | 3 | Short-term |
-| Compliance | Low | 2 | Long-term |
+| Category         | Risk Level | Issues | Priority   |
+| ---------------- | ---------- | ------ | ---------- |
+| Binary Security  | Critical   | 2      | Immediate  |
+| Input Validation | High       | 3      | Immediate  |
+| Architecture     | Medium     | 4      | Short-term |
+| Testing          | Medium     | 3      | Short-term |
+| Compliance       | Low        | 2      | Long-term  |
 
 **Total Issues Identified:** 20
 **Critical:** 2

@@ -53,62 +53,62 @@ Benchmarks run on GitHub Actions standard runners:
 
 ### Single Secret Retrieval
 
-| Metric | Value | Notes |
-|--------|-------|-------|
-| **Average Latency** | 1.2s | Including CLI download and vault resolution |
-| **P95 Latency** | 2.1s | 95th percentile response time |
-| **P99 Latency** | 3.4s | 99th percentile response time |
-| **Memory Peak** | 8MB | Peak memory usage during retrieval |
-| **CPU Usage** | < 5% | Average CPU usage |
+| Metric              | Value | Notes                                       |
+| ------------------- | ----- | ------------------------------------------- |
+| **Average Latency** | 1.2s  | Including CLI download and vault resolution |
+| **P95 Latency**     | 2.1s  | 95th percentile response time               |
+| **P99 Latency**     | 3.4s  | 99th percentile response time               |
+| **Memory Peak**     | 8MB   | Peak memory usage during retrieval          |
+| **CPU Usage**       | < 5%  | Average CPU usage                           |
 
 ### Batch Secret Retrieval
 
 #### Concurrent Processing (Default: 5 concurrent)
 
-| Secret Count | Average Time | P95 Time | Memory Peak | Notes |
-|--------------|--------------|----------|-------------|-------|
-| 1 secret | 1.2s | 2.1s | 8MB | Baseline |
-| 5 secrets | 2.1s | 3.2s | 12MB | Optimal concurrency |
-| 10 secrets | 3.4s | 4.8s | 18MB | Good performance |
-| 25 secrets | 6.7s | 9.2s | 28MB | Acceptable |
-| 50 secrets | 12.3s | 16.8s | 45MB | Upper limit recommended |
+| Secret Count | Average Time | P95 Time | Memory Peak | Notes                   |
+| ------------ | ------------ | -------- | ----------- | ----------------------- |
+| 1 secret     | 1.2s         | 2.1s     | 8MB         | Baseline                |
+| 5 secrets    | 2.1s         | 3.2s     | 12MB        | Optimal concurrency     |
+| 10 secrets   | 3.4s         | 4.8s     | 18MB        | Good performance        |
+| 25 secrets   | 6.7s         | 9.2s     | 28MB        | Acceptable              |
+| 50 secrets   | 12.3s        | 16.8s    | 45MB        | Upper limit recommended |
 
 #### Sequential vs Parallel Comparison
 
 | Secret Count | Sequential | Parallel (5x) | Speedup | Efficiency |
-|--------------|------------|---------------|---------|------------|
-| 5 secrets | 6.0s | 2.1s | 2.9x | 58% |
-| 10 secrets | 12.0s | 3.4s | 3.5x | 70% |
-| 25 secrets | 30.0s | 6.7s | 4.5x | 90% |
-| 50 secrets | 60.0s | 12.3s | 4.9x | 98% |
+| ------------ | ---------- | ------------- | ------- | ---------- |
+| 5 secrets    | 6.0s       | 2.1s          | 2.9x    | 58%        |
+| 10 secrets   | 12.0s      | 3.4s          | 3.5x    | 70%        |
+| 25 secrets   | 30.0s      | 6.7s          | 4.5x    | 90%        |
+| 50 secrets   | 60.0s      | 12.3s         | 4.9x    | 98%        |
 
 ### Startup Performance
 
-| Component | Time | Description |
-|-----------|------|-------------|
-| **Binary Download** | 0.3s | Download action binary |
-| **CLI Download** | 0.8s | Download and verify 1Password CLI |
-| **Authentication** | 0.2s | Token validation |
-| **Vault Resolution** | 0.1s | Name to ID resolution (cached) |
-| **Total Startup** | 1.4s | Complete initialization |
+| Component            | Time | Description                       |
+| -------------------- | ---- | --------------------------------- |
+| **Binary Download**  | 0.3s | Download action binary            |
+| **CLI Download**     | 0.8s | Download and verify 1Password CLI |
+| **Authentication**   | 0.2s | Token validation                  |
+| **Vault Resolution** | 0.1s | Name to ID resolution (cached)    |
+| **Total Startup**    | 1.4s | Complete initialization           |
 
 ### Caching Performance
 
 #### Vault Resolution Caching
 
-| Cache State | Resolution Time | Notes |
-|-------------|-----------------|-------|
-| **Cold Cache** | 150ms | First vault resolution |
-| **Warm Cache** | 5ms | Subsequent resolutions |
-| **Cache Hit Rate** | 95%+ | In typical workflows |
+| Cache State        | Resolution Time | Notes                  |
+| ------------------ | --------------- | ---------------------- |
+| **Cold Cache**     | 150ms           | First vault resolution |
+| **Warm Cache**     | 5ms             | Subsequent resolutions |
+| **Cache Hit Rate** | 95%+            | In typical workflows   |
 
 #### CLI Binary Caching
 
-| Cache State | Download Time | Notes |
-|-------------|---------------|-------|
-| **No Cache** | 800ms | Fresh CLI download |
-| **Cached Binary** | 50ms | Verification only |
-| **Cache Hit Rate** | 90%+ | In CI/CD environments |
+| Cache State        | Download Time | Notes                 |
+| ------------------ | ------------- | --------------------- |
+| **No Cache**       | 800ms         | Fresh CLI download    |
+| **Cached Binary**  | 50ms          | Verification only     |
+| **Cache Hit Rate** | 90%+          | In CI/CD environments |
 
 ## Memory Usage
 
@@ -116,25 +116,25 @@ Benchmarks run on GitHub Actions standard runners:
 
 #### Typical Workflow (5 secrets)
 
-| Component | Memory Usage | Peak | Notes |
-|-----------|--------------|------|-------|
-| **Base Process** | 4MB | 4MB | Go runtime overhead |
-| **CLI Binary** | 2MB | 2MB | 1Password CLI in memory |
-| **Secure Memory** | 1MB | 3MB | Secrets storage (cleared) |
-| **Network Buffers** | 1MB | 2MB | HTTP request/response |
-| **JSON Parsing** | 0.5MB | 1MB | Configuration parsing |
-| **Total** | 8.5MB | 12MB | Peak during processing |
+| Component           | Memory Usage | Peak | Notes                     |
+| ------------------- | ------------ | ---- | ------------------------- |
+| **Base Process**    | 4MB          | 4MB  | Go runtime overhead       |
+| **CLI Binary**      | 2MB          | 2MB  | 1Password CLI in memory   |
+| **Secure Memory**   | 1MB          | 3MB  | Secrets storage (cleared) |
+| **Network Buffers** | 1MB          | 2MB  | HTTP request/response     |
+| **JSON Parsing**    | 0.5MB        | 1MB  | Configuration parsing     |
+| **Total**           | 8.5MB        | 12MB | Peak during processing    |
 
 #### Large Workflow (50 secrets)
 
-| Component | Memory Usage | Peak | Notes |
-|-----------|--------------|------|-------|
-| **Base Process** | 4MB | 4MB | Go runtime overhead |
-| **CLI Binary** | 2MB | 2MB | 1Password CLI in memory |
-| **Secure Memory** | 15MB | 25MB | Multiple secrets (cleared) |
-| **Network Buffers** | 5MB | 8MB | Concurrent requests |
-| **JSON Parsing** | 2MB | 4MB | Large configuration |
-| **Total** | 28MB | 43MB | Peak during processing |
+| Component           | Memory Usage | Peak | Notes                      |
+| ------------------- | ------------ | ---- | -------------------------- |
+| **Base Process**    | 4MB          | 4MB  | Go runtime overhead        |
+| **CLI Binary**      | 2MB          | 2MB  | 1Password CLI in memory    |
+| **Secure Memory**   | 15MB         | 25MB | Multiple secrets (cleared) |
+| **Network Buffers** | 5MB          | 8MB  | Concurrent requests        |
+| **JSON Parsing**    | 2MB          | 4MB  | Large configuration        |
+| **Total**           | 28MB         | 43MB | Peak during processing     |
 
 ### Memory Optimization Features
 
@@ -166,11 +166,11 @@ strategy:
     region: [us-east, us-west, eu-central]
 ```
 
-| Matrix Size | Total Time | Resource Usage | Notes |
-|-------------|------------|----------------|-------|
-| 3x3 (9 jobs) | 2.5s | 108MB total | Excellent scaling |
-| 5x5 (25 jobs) | 3.1s | 300MB total | Good performance |
-| 10x10 (100 jobs) | 4.2s | 1.2GB total | Acceptable load |
+| Matrix Size      | Total Time | Resource Usage | Notes             |
+| ---------------- | ---------- | -------------- | ----------------- |
+| 3x3 (9 jobs)     | 2.5s       | 108MB total    | Excellent scaling |
+| 5x5 (25 jobs)    | 3.1s       | 300MB total    | Good performance  |
+| 10x10 (100 jobs) | 4.2s       | 1.2GB total    | Acceptable load   |
 
 #### Concurrent Workflow Limits
 
@@ -188,12 +188,12 @@ strategy:
     max_concurrency: 10  # Increase for more secrets
 ```
 
-| Concurrency | Memory Impact | Time Improvement | Recommended For |
-|-------------|---------------|------------------|-----------------|
-| 1 (sequential) | Minimal | Baseline | < 5 secrets |
-| 5 (default) | Low | 3-5x faster | 5-25 secrets |
-| 10 (high) | Moderate | 5-8x faster | 25-50 secrets |
-| 20 (maximum) | High | 8-10x faster | > 50 secrets |
+| Concurrency    | Memory Impact | Time Improvement | Recommended For |
+| -------------- | ------------- | ---------------- | --------------- |
+| 1 (sequential) | Minimal       | Baseline         | < 5 secrets     |
+| 5 (default)    | Low           | 3-5x faster      | 5-25 secrets    |
+| 10 (high)      | Moderate      | 5-8x faster      | 25-50 secrets   |
+| 20 (maximum)   | High          | 8-10x faster     | > 50 secrets    |
 
 ### Resource Limits
 
@@ -233,12 +233,12 @@ strategy:
 
 #### Geographic Performance
 
-| Region | Avg Latency | P95 Latency | Notes |
-|--------|-------------|-------------|-------|
-| **US East** | 50ms | 120ms | Optimal for US runners |
-| **US West** | 80ms | 180ms | Good performance |
-| **Europe** | 120ms | 250ms | Acceptable latency |
-| **Asia Pacific** | 200ms | 400ms | Higher latency expected |
+| Region           | Avg Latency | P95 Latency | Notes                   |
+| ---------------- | ----------- | ----------- | ----------------------- |
+| **US East**      | 50ms        | 120ms       | Optimal for US runners  |
+| **US West**      | 80ms        | 180ms       | Good performance        |
+| **Europe**       | 120ms       | 250ms       | Acceptable latency      |
+| **Asia Pacific** | 200ms       | 400ms       | Higher latency expected |
 
 #### Network Optimization Tips
 
