@@ -840,42 +840,46 @@ grep -i "memory\|oom\|killed" action.log
 
 ### Authentication Errors
 
-| Error | Meaning | Solution |
-|-------|---------|----------|
-| `Invalid service account token format` | Token format is wrong | Use service account token starting with "ops_" |
-| `Authentication failed` | Token is invalid or expired | Check token validity and permissions |
-| `Insufficient permissions` | Service account lacks vault access | Grant vault access to service account |
+<!-- markdownlint-disable MD013 -->
+
+| Error                                  | Meaning                            | Solution                                       |
+| -------------------------------------- | ---------------------------------- | ---------------------------------------------- |
+| `Invalid service account token format` | Token format is wrong              | Use service account token starting with "ops_" |
+| `Authentication failed`                | Token is invalid or expired        | Check token validity and permissions           |
+| `Insufficient permissions`             | Service account lacks vault access | Grant vault access to service account          |
+
+<!-- markdownlint-enable MD013 -->
 
 ### Vault Errors
 
-| Error | Meaning | Solution |
-|-------|---------|----------|
-| `Vault not found` | Vault doesn't exist or no access | Check vault name/ID and permissions |
-| `Vault access denied` | No permission to access vault | Grant read access to vault |
+| Error                 | Meaning                          | Solution                            |
+| --------------------- | -------------------------------- | ----------------------------------- |
+| `Vault not found`     | Vault doesn't exist or no access | Check vault name/ID and permissions |
+| `Vault access denied` | No permission to access vault    | Grant read access to vault          |
 
 ### Secret Errors
 
-| Error | Meaning | Solution |
-|-------|---------|----------|
-| `Secret not found` | Item or field doesn't exist | Verify item and field names |
-| `Several items found` | Item name is not unique | Use item ID instead of name |
-| `Field not accessible` | Field exists but can't be read | Check field permissions |
+| Error                  | Meaning                        | Solution                    |
+| ---------------------- | ------------------------------ | --------------------------- |
+| `Secret not found`     | Item or field doesn't exist    | Verify item and field names |
+| `Several items found`  | Item name is not unique        | Use item ID instead of name |
+| `Field not accessible` | Field exists but can't be read | Check field permissions     |
 
 ### Format Errors
 
-| Error | Meaning | Solution |
-|-------|---------|----------|
-| `Invalid record format` | Record syntax is wrong | Check JSON/YAML syntax |
-| `JSON parsing failed` | Invalid JSON in record | Validate JSON format |
-| `YAML parsing failed` | Invalid YAML in record | Check YAML indentation and syntax |
+| Error                   | Meaning                | Solution                          |
+| ----------------------- | ---------------------- | --------------------------------- |
+| `Invalid record format` | Record syntax is wrong | Check JSON/YAML syntax            |
+| `JSON parsing failed`   | Invalid JSON in record | Validate JSON format              |
+| `YAML parsing failed`   | Invalid YAML in record | Check YAML indentation and syntax |
 
 ### Network Errors
 
-| Error | Meaning | Solution |
-|-------|---------|----------|
-| `Connection timeout` | Network connectivity issue | Increase timeouts, check connectivity |
-| `SSL verification failed` | Certificate validation issue | Check system time, update CA certs |
-| `Rate limit exceeded` | Too numerous API requests | Reduce concurrency, add delays |
+| Error                     | Meaning                      | Solution                              |
+| ------------------------- | ---------------------------- | ------------------------------------- |
+| `Connection timeout`      | Network connectivity issue   | Increase timeouts, check connectivity |
+| `SSL verification failed` | Certificate validation issue | Check system time, update CA certs    |
+| `Rate limit exceeded`     | Too numerous API requests    | Reduce concurrency, add delays        |
 
 ## Getting Help
 

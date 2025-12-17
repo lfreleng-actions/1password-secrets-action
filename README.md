@@ -89,17 +89,17 @@ steps:
 
 <!-- markdownlint-disable MD013 -->
 
-| Name | Required | Default | Description |
-|------|----------|---------|-------------|
-| `token` | Yes | - | 1Password service account token |
-| `vault` | Yes | | Vault name or ID containing the secrets |
-| `record` | Yes | - | Secret specification (see Record Format below) |
-| `return_type` | No | `output` | How to return values: `output`, `env`, or `both` |
-| `timeout` | No | `300` | Operation timeout in seconds |
-| `max_concurrency` | No | `5` | Limit for concurrent secret retrievals |
-| `cache_enabled` | No | `false` | Enable caching for improved performance |
-| `cli_version` | No | `latest` | 1Password CLI version to use (must exist in the versions database) |
-| `debug` | No | `false` | Enable debug logging |
+| Name              | Required | Default  | Description                                                        |
+| ----------------- | -------- | -------- | ------------------------------------------------------------------ |
+| `token`           | Yes      | -        | 1Password service account token                                    |
+| `vault`           | Yes      |          | Vault name or ID containing the secrets                            |
+| `record`          | Yes      | -        | Secret specification (see Record Format below)                     |
+| `return_type`     | No       | `output` | How to return values: `output`, `env`, or `both`                   |
+| `timeout`         | No       | `300`    | Operation timeout in seconds                                       |
+| `max_concurrency` | No       | `5`      | Limit for concurrent secret retrievals                             |
+| `cache_enabled`   | No       | `false`  | Enable caching for improved performance                            |
+| `cli_version`     | No       | `latest` | 1Password CLI version to use (must exist in the versions database) |
+| `debug`           | No       | `false`  | Enable debug logging                                               |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -107,16 +107,16 @@ steps:
 
 ### Single Secret Mode
 
-| Name | Description |
-|------|-------------|
+| Name    | Description                |
+| ------- | -------------------------- |
 | `value` | The retrieved secret value |
 
 ### Batch Secrets Mode
 
-| Name | Description |
-|------|-------------|
-| `secrets_count` | Number of secrets retrieved |
-| `<key>` | Individual secret values using keys from record specification |
+| Name            | Description                                                   |
+| --------------- | ------------------------------------------------------------- |
+| `secrets_count` | Number of secrets retrieved                                   |
+| `<key>`         | Individual secret values using keys from record specification |
 
 ## Record Format
 
