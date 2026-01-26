@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -126,7 +126,7 @@ jobs:
         go-version: ['1.23', '1.24', '1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -216,7 +216,7 @@ jobs:
         go-version: ['1.23', '1.24', '1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -293,7 +293,7 @@ jobs:
         arch: [amd64, arm64]
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -357,7 +357,7 @@ jobs:
         go-version: ['1.23', '1.24', '1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -429,7 +429,7 @@ jobs:
         go-version: ['1.23', '1.24', '1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -505,7 +505,7 @@ jobs:
         go-version: ['1.23', '1.24', '1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -534,7 +534,7 @@ jobs:
         go-version: ['1.23', '1.24', '1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -563,7 +563,7 @@ jobs:
         go-version: ['1.25']
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -597,7 +597,7 @@ jobs:
         go-version: ['1.25']  # Only latest for PR security checks
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Setup Go"
         uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
@@ -737,7 +737,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Test single secret retrieval (mock)"
         id: single-secret
@@ -788,7 +788,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Test output return type (mock)"
         id: output-test
@@ -835,7 +835,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: "Test invalid vault (mock)"
         id: invalid-vault
