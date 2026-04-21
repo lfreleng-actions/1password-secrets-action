@@ -164,10 +164,17 @@ func (s *IntegrationTestSuite) runWithRetry(
 		}
 		s.T().Logf("%s: transient error on attempt %d/%d, retrying in %s: %v",
 			label, attempt, maxAttempts, backoff, lastErr)
+		timer := time.NewTimer(backoff)
 		select {
 		case <-s.ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return s.ctx.Err()
-		case <-time.After(backoff):
+		case <-timer.C:
 		}
 		backoff *= 2
 		if backoff > 15*time.Second {

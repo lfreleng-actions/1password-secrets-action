@@ -28,7 +28,14 @@ func generateMockValue(parts ...string) string {
 // generateMockHex returns a lowercase hex string of the given byte length,
 // seeded with a caller-supplied label so values remain stable across
 // runs. Used to build fake "key"/"token" style fixtures at runtime.
+//
+// Guards: an empty label or non-positive nBytes yields an empty string
+// rather than panicking. Current call sites pass constants, but the
+// guards make the helper safe for future reuse.
 func generateMockHex(label string, nBytes int) string {
+	if label == "" || nBytes <= 0 {
+		return ""
+	}
 	buf := make([]byte, nBytes)
 	for i := range buf {
 		// Simple, deterministic fill derived from label - sufficient
