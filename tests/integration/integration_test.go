@@ -98,9 +98,9 @@ func (s *IntegrationTestSuite) createTestConfig() *config.Config {
 		ReturnType:      "output",
 		Debug:           false,
 		LogLevel:        "info",
-		Timeout:         30, // 30 seconds timeout
-		RetryTimeout:    10, // 10 seconds retry timeout
-		ConnectTimeout:  10, // 10 seconds connect timeout
+		Timeout:         60, // 60 seconds timeout (raised to absorb transient 1Password API latency)
+		RetryTimeout:    20, // 20 seconds retry timeout
+		ConnectTimeout:  15, // 15 seconds connect timeout
 		MaxConcurrency:  5,  // 5 concurrent operations
 		GitHubWorkspace: s.tempDir,
 		GitHubOutput:    filepath.Join(s.tempDir, "github_output"),
@@ -127,6 +127,95 @@ func (s *IntegrationTestSuite) getTestCredentials() (string, string) {
 		cred2 = "ssl3yfkrel4wmhldqku2jfpeye"
 	}
 	return cred1, cred2
+}
+
+// runWithRetry executes fn with bounded retries on transient errors from
+// the external 1Password API. Integration tests hit a live service, so
+// brief blips (context deadline exceeded, connection reset, 5xx) should
+// not fail the whole job. Non-transient errors (auth, not-found,
+// validation) are returned on the first attempt.
+//
+// maxAttempts includes the initial attempt. A simple exponential backoff
+// is used between attempts.
+func (s *IntegrationTestSuite) runWithRetry(
+	maxAttempts int,
+	label string,
+	fn func() error,
+) error {
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+	var lastErr error
+	backoff := 2 * time.Second
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		lastErr = fn()
+		if lastErr == nil {
+			if attempt > 1 {
+				s.T().Logf("%s: succeeded on attempt %d/%d",
+					label, attempt, maxAttempts)
+			}
+			return nil
+		}
+		if !isTransientIntegrationError(lastErr) {
+			return lastErr
+		}
+		if attempt == maxAttempts {
+			break
+		}
+		s.T().Logf("%s: transient error on attempt %d/%d, retrying in %s: %v",
+			label, attempt, maxAttempts, backoff, lastErr)
+		timer := time.NewTimer(backoff)
+		select {
+		case <-s.ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			return s.ctx.Err()
+		case <-timer.C:
+		}
+		backoff *= 2
+		if backoff > 15*time.Second {
+			backoff = 15 * time.Second
+		}
+	}
+	return lastErr
+}
+
+// isTransientIntegrationError returns true for error strings we have seen
+// in CI that indicate a retryable condition when calling the live
+// 1Password service from integration tests.
+func isTransientIntegrationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	transient := []string{
+		"context deadline exceeded",
+		"deadline exceeded",
+		"connection reset",
+		"connection refused",
+		"timeout",
+		"temporary failure",
+		"temporarily unavailable",
+		"no such host",
+		"i/o timeout",
+		"eof",
+		"tls handshake",
+		"bad gateway",
+		"gateway timeout",
+		"service unavailable",
+		"too many requests",
+		"server misbehaving",
+	}
+	for _, p := range transient {
+		if strings.Contains(msg, p) {
+			return true
+		}
+	}
+	return false
 }
 
 // setupTestVault ensures test vault exists with required test data
@@ -187,16 +276,34 @@ func (s *IntegrationTestSuite) TestSingleSecretRetrieval() {
 			cfg := s.createTestConfig()
 			cfg.Record = tt.record
 
-			actionRunner := action.NewRunnerWithClient(cfg, s.client)
-			result, err := actionRunner.Run(s.ctx)
+			var (
+				result *action.Result
+				runErr error
+			)
+			// Retry transient external-API failures to keep
+			// integration tests robust against live-service
+			// blips. Non-transient errors short-circuit.
+			retryErr := s.runWithRetry(3, "TestSingleSecretRetrieval/"+tt.name, func() error {
+				actionRunner := action.NewRunnerWithClient(cfg, s.client)
+				result, runErr = actionRunner.Run(s.ctx)
+				if !tt.expected {
+					// The returned error is the success
+					// condition for this subtest; don't retry.
+					return nil
+				}
+				return runErr
+			})
 
 			if tt.expected {
-				assert.NoError(s.T(), err)
-				assert.NotNil(s.T(), result)
+				// Use require for nil-safety so a transient
+				// upstream failure produces a clean FAIL
+				// rather than a nil pointer panic below.
+				require.NoError(s.T(), retryErr)
+				require.NotNil(s.T(), result)
 				assert.NotEmpty(s.T(), result.Outputs["value"])
 				assert.Equal(s.T(), 1, result.SecretsCount)
 			} else {
-				assert.Error(s.T(), err)
+				assert.Error(s.T(), runErr)
 			}
 		})
 	}
@@ -246,20 +353,39 @@ database_url: %s/password`, cred1, cred1, cred2),
 			cfg := s.createTestConfig()
 			cfg.Record = tt.record
 
-			actionRunner := action.NewRunnerWithClient(cfg, s.client)
-			result, err := actionRunner.Run(s.ctx)
+			var (
+				result *action.Result
+				runErr error
+			)
+			// Retry transient external-API failures (e.g. vault
+			// listing hitting a context deadline) to avoid flaky
+			// CI runs. Non-transient errors short-circuit.
+			// For shouldFail cases we don't retry, since the
+			// returned error is the success condition.
+			retryErr := s.runWithRetry(3, "TestMultipleSecretsRetrieval/"+tt.name, func() error {
+				actionRunner := action.NewRunnerWithClient(cfg, s.client)
+				result, runErr = actionRunner.Run(s.ctx)
+				if tt.shouldFail {
+					return nil
+				}
+				return runErr
+			})
 
 			if tt.shouldFail {
-				assert.Error(s.T(), err)
-			} else {
-				assert.NoError(s.T(), err)
-				assert.NotNil(s.T(), result)
-				assert.Equal(s.T(), len(tt.expectedKeys), result.SecretsCount)
+				assert.Error(s.T(), runErr)
+				return
+			}
 
-				for _, key := range tt.expectedKeys {
-					assert.Contains(s.T(), result.Outputs, key)
-					assert.NotEmpty(s.T(), result.Outputs[key])
-				}
+			// Use require for nil-safety so a transient upstream
+			// failure produces a clean FAIL rather than a nil
+			// pointer panic on the next line.
+			require.NoError(s.T(), retryErr)
+			require.NotNil(s.T(), result)
+
+			assert.Equal(s.T(), len(tt.expectedKeys), result.SecretsCount)
+			for _, key := range tt.expectedKeys {
+				assert.Contains(s.T(), result.Outputs, key)
+				assert.NotEmpty(s.T(), result.Outputs[key])
 			}
 		})
 	}
