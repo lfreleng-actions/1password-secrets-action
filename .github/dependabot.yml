@@ -10,6 +10,8 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "Chore"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 15
   - package-ecosystem: "gomod"
     directory: "/"
@@ -17,4 +19,6 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "Chore"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 15
