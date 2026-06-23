@@ -132,7 +132,7 @@ runs:
         if [ -n "$ACTION_DOWNLOAD_URL" ]; then
           echo "::group::Downloading 1Password Secrets Action binary"
           echo "Download URL: $ACTION_DOWNLOAD_URL"
-          curl -fsSL -o "${BINARY_NAME}" "$ACTION_DOWNLOAD_URL"
+          curl -fsSL -o "${BINARY_NAME}" -- "$ACTION_DOWNLOAD_URL"
 
           # Require checksum when using custom download URL and verify it (cross-platform)
           if [ -z "$ACTION_CHECKSUM" ]; then
