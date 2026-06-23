@@ -129,13 +129,13 @@ runs:
         BINARY_NAME="op-secrets-action-${OS}-${ARCH}"
 
         # Check if custom download URL is provided, otherwise build locally
-        if [ -n "${{ inputs.download_url }}" ]; then
+        if [ -n "$ACTION_DOWNLOAD_URL" ]; then
           echo "::group::Downloading 1Password Secrets Action binary"
-          echo "Download URL: ${{ inputs.download_url }}"
-          curl -fsSL -o "${BINARY_NAME}" "${{ inputs.download_url }}"
+          echo "Download URL: $ACTION_DOWNLOAD_URL"
+          curl -fsSL -o "${BINARY_NAME}" "$ACTION_DOWNLOAD_URL"
 
           # Require checksum when using custom download URL and verify it (cross-platform)
-          if [ -z "${{ inputs.checksum }}" ]; then
+          if [ -z "$ACTION_CHECKSUM" ]; then
             echo "::error::Custom download URL provided but no checksum specified. Please provide the 'checksum' input."
             exit 1
           fi
@@ -148,9 +148,9 @@ runs:
             echo "::error::No SHA-256 tool found (sha256sum or shasum)"
             exit 1
           fi
-          if [ "${ACTUAL_CHECKSUM}" != "${{ inputs.checksum }}" ]; then
+          if [ "${ACTUAL_CHECKSUM}" != "$ACTION_CHECKSUM" ]; then
             echo "::error::Checksum verification failed!"
-            echo "::error::Expected: ${{ inputs.checksum }}"
+            echo "::error::Expected: $ACTION_CHECKSUM"
             echo "::error::Actual: ${ACTUAL_CHECKSUM}"
             exit 1
           fi
@@ -189,17 +189,37 @@ runs:
         # Make executable
         chmod +x "${BINARY_NAME}"
 
-        # Execute the binary with inputs
-        # vault and record are passed via environment variables to avoid shell escaping issues with multiline JSON
-        ./"${BINARY_NAME}" \
-          $([ -n "${{ inputs.return_type }}" ] && echo "--return-type=${{ inputs.return_type }}") \
-          $([ -n "${{ inputs.config_file }}" ] && echo "--config=${{ inputs.config_file }}") \
-          $([ -n "${{ inputs.timeout }}" ] && echo "--timeout=${{ inputs.timeout }}") \
-          $([ -n "${{ inputs.max_concurrency }}" ] && echo "--max-concurrency=${{ inputs.max_concurrency }}") \
-          $([ -n "${{ inputs.cli_version }}" ] && echo "--cli-version=${{ inputs.cli_version }}") \
-          $([ "${{ inputs.cache_enabled }}" = "true" ] && echo "--cache") \
-          $([ "${{ inputs.debug }}" = "true" ] && echo "--debug") \
-          $([ "${{ inputs.mock_mode }}" = "true" ] && echo "--mock")
+        # Execute the binary with inputs.
+        # vault and record are passed via environment variables to avoid shell escaping issues with multiline JSON.
+        # Build the optional flags as an argv array so values such as a
+        # config_file path containing spaces stay a single argument and
+        # are not subject to word-splitting or glob expansion.
+        args=()
+        if [ -n "$OP_RETURN_TYPE" ]; then
+          args+=("--return-type=$OP_RETURN_TYPE")
+        fi
+        if [ -n "$OP_CONFIG_FILE" ]; then
+          args+=("--config=$OP_CONFIG_FILE")
+        fi
+        if [ -n "$OP_TIMEOUT" ]; then
+          args+=("--timeout=$OP_TIMEOUT")
+        fi
+        if [ -n "$OP_MAX_CONCURRENCY" ]; then
+          args+=("--max-concurrency=$OP_MAX_CONCURRENCY")
+        fi
+        if [ -n "$OP_CLI_VERSION" ]; then
+          args+=("--cli-version=$OP_CLI_VERSION")
+        fi
+        if [ "$OP_CACHE_ENABLED" = "true" ]; then
+          args+=("--cache")
+        fi
+        if [ "$DEBUG" = "true" ]; then
+          args+=("--debug")
+        fi
+        if [ "$MOCK_MODE" = "true" ]; then
+          args+=("--mock")
+        fi
+        ./"${BINARY_NAME}" "${args[@]}"
 
         # Clean up the binary
         rm -f "${BINARY_NAME}"
