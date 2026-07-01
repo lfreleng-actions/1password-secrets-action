@@ -144,12 +144,14 @@ jobs:
           cache: false
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -236,12 +238,14 @@ jobs:
           cache: false
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -381,12 +385,14 @@ jobs:
           cache: false
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -455,12 +461,14 @@ jobs:
           cache: false
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -778,7 +786,7 @@ jobs:
 
       - name: "Verify single secret value"
         run: |
-          if [[ -z "${{ steps.single-secret.outputs.value }}" ]]; then
+          if [[ -z "${STEPS_SINGLE_SECRET_OUTPUTS_VALUE}" ]]; then
             echo "Error: Single secret retrieval failed"
             exit 1
           fi
@@ -786,6 +794,7 @@ jobs:
           echo "Secret length: ${#SECRET_VALUE}"
         env:
           SECRET_VALUE: ${{ steps.single-secret.outputs.value }}
+          STEPS_SINGLE_SECRET_OUTPUTS_VALUE: ${{ steps.single-secret.outputs.value }}
 
       - name: "Test multiple secrets (JSON format) (mock)"
         id: multiple-json
@@ -803,11 +812,13 @@ jobs:
 
       - name: "Verify multiple secrets"
         run: |
-          if [[ "${{ steps.multiple-json.outputs.secrets_count }}" != "2" ]]; then
-            echo "Error: Expected 2 secrets, got ${{ steps.multiple-json.outputs.secrets_count }}"
+          if [[ "${STEPS_MULTIPLE_JSON_OUTPUTS_SECRETS_COUNT}" != "2" ]]; then
+            echo "Error: Expected 2 secrets, got ${STEPS_MULTIPLE_JSON_OUTPUTS_SECRETS_COUNT}"
             exit 1
           fi
           echo "✅ Multiple secrets retrieved successfully"
+        env:
+          STEPS_MULTIPLE_JSON_OUTPUTS_SECRETS_COUNT: ${{ steps.multiple-json.outputs.secrets_count }}
 
   mock-action-return-types:
     name: "Mock Action Return Types"
@@ -832,11 +843,13 @@ jobs:
 
       - name: "Verify output return type"
         run: |
-          if [[ -z "${{ steps.output-test.outputs.value }}" ]]; then
+          if [[ -z "${STEPS_OUTPUT_TEST_OUTPUTS_VALUE}" ]]; then
             echo "Error: Output return type failed"
             exit 1
           fi
           echo "✅ Output return type test passed"
+        env:
+          STEPS_OUTPUT_TEST_OUTPUTS_VALUE: ${{ steps.output-test.outputs.value }}
 
       - name: "Test environment return type (mock)"
         id: env-test
@@ -881,8 +894,10 @@ jobs:
 
       - name: "Verify error handling"
         run: |
-          if [[ "${{ steps.invalid-vault.outcome }}" != "failure" ]]; then
-            echo "Error: Expected failure for invalid vault, but got: ${{ steps.invalid-vault.outcome }}"
+          if [[ "${STEPS_INVALID_VAULT_OUTCOME}" != "failure" ]]; then
+            echo "Error: Expected failure for invalid vault, but got: ${STEPS_INVALID_VAULT_OUTCOME}"
             exit 1
           fi
           echo "✅ Error handling test passed - invalid vault correctly failed"
+        env:
+          STEPS_INVALID_VAULT_OUTCOME: ${{ steps.invalid-vault.outcome }}

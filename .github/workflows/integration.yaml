@@ -29,13 +29,19 @@ jobs:
   github-environment:
     name: "Check GitHub environment"
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 2
     steps:
       - name: "Verify required parameters"
         id: check-secrets
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          OP_VAULT: ${{ secrets.OP_VAULT }}
+          OP_TEST_CREDENTIAL_1: ${{ secrets.OP_TEST_CREDENTIAL_1 }}
+          OP_TEST_CREDENTIAL_2: ${{ secrets.OP_TEST_CREDENTIAL_2 }}
         run: |
           # Verify required parameters
-          if [ -z "${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}" ]; then
+          if [ -z "${OP_SERVICE_ACCOUNT_TOKEN}" ]; then
             echo "token_available=false" >> "$GITHUB_OUTPUT"
             echo "Error: OP_SERVICE_ACCOUNT_TOKEN not available ❌"
             exit 1
@@ -43,21 +49,20 @@ jobs:
             echo "OP_SERVICE_ACCOUNT_TOKEN available ✅"
             echo "token_available=true" >> "$GITHUB_OUTPUT"
           fi
-                    # Verify required parameters
-          if [ -z "${{ secrets.OP_VAULT }}" ]; then
+          if [ -z "${OP_VAULT}" ]; then
             echo "Error: OP_VAULT not available ❌"
             exit 1
           else
             echo "OP_VAULT available ✅"
           fi
-          if [ -z "${{ secrets.OP_TEST_CREDENTIAL_1 }}" ]; then
+          if [ -z "${OP_TEST_CREDENTIAL_1}" ]; then
             echo "Error: OP_TEST_CREDENTIAL_1 not available ❌"
             exit 1
           else
             echo "OP_TEST_CREDENTIAL_1 available ✅"
           fi
 
-          if [ -z "${{ secrets.OP_TEST_CREDENTIAL_2 }}" ]; then
+          if [ -z "${OP_TEST_CREDENTIAL_2}" ]; then
             echo "Error: OP_TEST_CREDENTIAL_2 not available ❌"
             exit 1
           else
@@ -68,6 +73,7 @@ jobs:
     name: "Integration Tests"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     permissions:
       contents: read
     timeout-minutes: 20
@@ -88,13 +94,15 @@ jobs:
           cache: true
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
           # Verify Go version matches matrix
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -133,6 +141,7 @@ jobs:
     name: "Live Credentials Smoke Test"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 15
     steps:
       - name: "Checkout repository"
@@ -152,13 +161,13 @@ jobs:
       - name: "Verify live secret retrieval"
         run: |
           # Verify live secret retrieval
-          if [[ -z "${{ steps.single-secret.outputs.value }}" ]]; then
+          if [[ -z "${STEPS_SINGLE_SECRET_OUTPUTS_VALUE}" ]]; then
             echo "Error: Live secret retrieval failed"
             exit 1
           fi
 
           # Calculate SHA1 of retrieved value for verification
-          retrieved_sha1=$(echo -n "${{ steps.single-secret.outputs.value }}" | sha1sum | cut -d' ' -f1)
+          retrieved_sha1=$(echo -n "${STEPS_SINGLE_SECRET_OUTPUTS_VALUE}" | sha1sum | cut -d' ' -f1)
           expected_sha1="a910db944e927d2af1276c4f1b806800f5e6654d"
 
           if [[ "$retrieved_sha1" == "$expected_sha1" ]]; then
@@ -167,6 +176,8 @@ jobs:
             echo "Error: SHA1 mismatch. Expected: $expected_sha1, Got: $retrieved_sha1"
             exit 1
           fi
+        env:
+          STEPS_SINGLE_SECRET_OUTPUTS_VALUE: ${{ steps.single-secret.outputs.value }}
 
       - name: "Test multiple secrets (live credentials)"
         id: multiple-secrets
@@ -184,8 +195,8 @@ jobs:
       - name: "Verify multiple secrets retrieval"
         run: |
           # Verify multiple secrets retrieval
-          if [[ "${{ steps.multiple-secrets.outputs.secrets_count }}" != "2" ]]; then
-            echo "Error: Expected 2 secrets, got ${{ steps.multiple-secrets.outputs.secrets_count }}"
+          if [[ "${STEPS_MULTIPLE_SECRETS_OUTPUTS_SECRETS_COUNT}" != "2" ]]; then
+            echo "Error: Expected 2 secrets, got ${STEPS_MULTIPLE_SECRETS_OUTPUTS_SECRETS_COUNT}"
             exit 1
           fi
           echo "✅ Live credentials multiple secrets test passed"
@@ -195,11 +206,14 @@ jobs:
           echo "  - Multiple credential retrieval: ✅ Working"
 
           echo "✅ All credential validation tests passed successfully"
+        env:
+          STEPS_MULTIPLE_SECRETS_OUTPUTS_SECRETS_COUNT: ${{ steps.multiple-secrets.outputs.secrets_count }}
 
   test-return-types-smoke:
     name: "Return Types Smoke Test"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
@@ -219,16 +233,19 @@ jobs:
 
       - name: "Verify output return type"
         run: |
-          if [[ -z "${{ steps.output-test.outputs.value }}" ]]; then
+          if [[ -z "${STEPS_OUTPUT_TEST_OUTPUTS_VALUE}" ]]; then
             echo "Error: Output return type test failed"
             exit 1
           fi
           echo "✅ Live credentials return type test passed"
+        env:
+          STEPS_OUTPUT_TEST_OUTPUTS_VALUE: ${{ steps.output-test.outputs.value }}
 
   test-live-error-handling:
     name: "Live Error Handling Test"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
@@ -249,16 +266,19 @@ jobs:
       - name: "Verify live error handling"
         run: |
           # Verify live error handling
-          if [[ "${{ steps.invalid-vault.outcome }}" != "failure" ]]; then
-            echo "Error: Expected failure for invalid vault, but got: ${{ steps.invalid-vault.outcome }}"
+          if [[ "${STEPS_INVALID_VAULT_OUTCOME}" != "failure" ]]; then
+            echo "Error: Expected failure for invalid vault, but got: ${STEPS_INVALID_VAULT_OUTCOME}"
             exit 1
           fi
           echo "✅ Live error handling test passed"
+        env:
+          STEPS_INVALID_VAULT_OUTCOME: ${{ steps.invalid-vault.outcome }}
 
   test-live-performance:
     name: "Live Performance Tests"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 12
     steps:
       - name: "Checkout repository"
@@ -310,6 +330,7 @@ jobs:
     name: "Live Security Smoke Test"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 10
     steps:
       - name: "Checkout repository"
@@ -329,17 +350,20 @@ jobs:
       - name: "Verify live secret masking"
         run: |
           # Verify live secret masking
-          if [[ -z "${{ steps.secret-masking.outputs.value }}" ]]; then
+          if [[ -z "${STEPS_SECRET_MASKING_OUTPUTS_VALUE}" ]]; then
             echo "Error: Secret masking test failed"
             exit 1
           fi
           echo "✅ Live secret masking test passed"
+        env:
+          STEPS_SECRET_MASKING_OUTPUTS_VALUE: ${{ steps.secret-masking.outputs.value }}
 
   test-live-comprehensive:
     name: "Live Comprehensive Test"
     needs: [github-environment, test-action-smoke, test-return-types-smoke, test-live-error-handling]
 
     runs-on: ubuntu-latest
+    environment: integration
     timeout-minutes: 40
     steps:
       - name: "Checkout repository"
@@ -367,17 +391,20 @@ jobs:
         run: |
           # Use retrieved secrets in mock deployment
           echo "Mock deployment using retrieved secrets..."
-          echo "Secrets Count: ${{ steps.complex.outputs.secrets_count }}"
-          if [[ "${{ steps.complex.outputs.secrets_count }}" != "2" ]]; then
-            echo "Error: Expected 2 secrets, got ${{ steps.complex.outputs.secrets_count }}"
+          echo "Secrets Count: ${STEPS_COMPLEX_OUTPUTS_SECRETS_COUNT}"
+          if [[ "${STEPS_COMPLEX_OUTPUTS_SECRETS_COUNT}" != "2" ]]; then
+            echo "Error: Expected 2 secrets, got ${STEPS_COMPLEX_OUTPUTS_SECRETS_COUNT}"
             exit 1
           fi
           echo "✅ Complex workflow test successful"
+        env:
+          STEPS_COMPLEX_OUTPUTS_SECRETS_COUNT: ${{ steps.complex.outputs.secrets_count }}
 
   performance-tests:
     name: "Performance Tests"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     permissions:
       contents: read
     timeout-minutes: 15
@@ -398,13 +425,15 @@ jobs:
           cache: true
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
           # Verify Go version matches matrix
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -446,9 +475,10 @@ jobs:
     name: "Security Tests"
     needs: [github-environment]
     runs-on: ubuntu-latest
+    environment: integration
     permissions:
-      contents: read
-      security-events: write
+      contents: read  # Required to check out the repository
+      security-events: write  # Required to upload SARIF scan results
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -467,13 +497,15 @@ jobs:
           cache: true
 
       - name: "Verify Go version matches matrix"
+        env:
+          GO_VERSION: ${{ matrix.go-version }}
         run: |
           # Verify Go version matches matrix
-          echo "Expected Go version: ${{ matrix.go-version }}"
+          echo "Expected Go version: ${GO_VERSION}"
           echo "Actual Go version: $(go version)"
-          if ! go version | grep -q "go${{ matrix.go-version }}"; then
+          if ! go version | grep -Fq "go${GO_VERSION}"; then
             echo "ERROR: Go version mismatch!"
-            echo "Expected: go${{ matrix.go-version }}"
+            echo "Expected: go${GO_VERSION}"
             echo "Actual: $(go version)"
             exit 1
           fi
@@ -509,52 +541,66 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Generate integration summary"
+        env:
+          ENV_RESULT: ${{ needs.github-environment.result }}
+          INT_RESULT: ${{ needs.integration-tests.result }}
+          SMOKE_RESULT: ${{ needs.test-action-smoke.result }}
+          RETURN_RESULT: ${{ needs.test-return-types-smoke.result }}
+          ERROR_RESULT: ${{ needs.test-live-error-handling.result }}
+          PERF_RESULT: ${{ needs.test-live-performance.result }}
+          SEC_RESULT: ${{ needs.test-live-security.result }}
+          COMP_RESULT: ${{ needs.test-live-comprehensive.result }}
+          GOPERF_RESULT: ${{ needs.performance-tests.result }}
+          GOSEC_RESULT: ${{ needs.security-tests.result }}
         run: |
           # Generate integration summary
+          pass_fail() {
+            [ "$1" = "success" ] && echo "✅ PASS" || echo "❌ FAIL"
+          }
           {
             echo "# 🔑 Integration Testing Results"
             echo ""
             echo "| Suite | Status | Notes |"
             echo "|-------|--------|-------|"
-            status_env="${{ needs.github-environment.result == 'success' && '✅ PASS' || '❌ FAIL' }}"
+            status_env="$(pass_fail "$ENV_RESULT")"
             echo "| Environment Check | $status_env | GitHub secrets validation |"
-            status_int="${{ needs.integration-tests.result == 'success' && '✅ PASS' || '❌ FAIL' }}"
+            status_int="$(pass_fail "$INT_RESULT")"
             echo "| Integration Tests | $status_int | Go integration suite |"
-            status_smoke="${{ needs.test-action-smoke.result == 'success' && '✅ PASS' || '❌ FAIL' }}"
+            status_smoke="$(pass_fail "$SMOKE_RESULT")"
             echo "| Live Credentials Smoke | $status_smoke | Single and multiple secret retrieval |"
-            status_return="${{ needs.test-return-types-smoke.result == 'success' && '✅ PASS' || '❌ FAIL' }}"
+            status_return="$(pass_fail "$RETURN_RESULT")"
             echo "| Return Type Smoke | $status_return | Output/both modes |"
-            status_error="${{ needs.test-live-error-handling.result == 'success' && '✅ PASS' || '❌ FAIL' }}"
+            status_error="$(pass_fail "$ERROR_RESULT")"
             echo "| Live Error Handling | $status_error | Invalid vault tests |"
-            if [[ "${{ needs.test-live-performance.result }}" == "success" ]]; then
+            if [[ "$PERF_RESULT" == "success" ]]; then
               perf_status="✅ PASS"
-            elif [[ "${{ needs.test-live-performance.result }}" == "skipped" ]]; then
+            elif [[ "$PERF_RESULT" == "skipped" ]]; then
               perf_status="⏭️ SKIP"
             else
               perf_status="❌ FAIL"
             fi
             echo "| Live Performance | $perf_status | Timing benchmarks |"
-            if [[ "${{ needs.test-live-security.result }}" == "success" ]]; then
+            if [[ "$SEC_RESULT" == "success" ]]; then
               sec_status="✅ PASS"
-            elif [[ "${{ needs.test-live-security.result }}" == "skipped" ]]; then
+            elif [[ "$SEC_RESULT" == "skipped" ]]; then
               sec_status="⏭️ SKIP"
             else
               sec_status="❌ FAIL"
             fi
             echo "| Live Security | $sec_status | Secret masking |"
-            comp_status="${{ needs.test-live-comprehensive.result == 'success' && '✅ PASS' || '❌ FAIL' }}"
+            comp_status="$(pass_fail "$COMP_RESULT")"
             echo "| Live Comprehensive | $comp_status | End-to-end workflow |"
-            if [[ "${{ needs.performance-tests.result }}" == "success" ]]; then
+            if [[ "$GOPERF_RESULT" == "success" ]]; then
               go_perf_status="✅ PASS"
-            elif [[ "${{ needs.performance-tests.result }}" == "skipped" ]]; then
+            elif [[ "$GOPERF_RESULT" == "skipped" ]]; then
               go_perf_status="⏭️ SKIP"
             else
               go_perf_status="❌ FAIL"
             fi
             echo "| Performance (Go) | $go_perf_status | Credentialed benchmarks |"
-            if [[ "${{ needs.security-tests.result }}" == "success" ]]; then
+            if [[ "$GOSEC_RESULT" == "success" ]]; then
               go_sec_status="✅ PASS"
-            elif [[ "${{ needs.security-tests.result }}" == "skipped" ]]; then
+            elif [[ "$GOSEC_RESULT" == "skipped" ]]; then
               go_sec_status="⏭️ SKIP"
             else
               go_sec_status="❌ FAIL"
@@ -566,30 +612,14 @@ jobs:
             passed=0
             total=8  # Core integration tests (excluding optional performance/security)
 
-            if [[ "${{ needs.test-action-smoke.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.test-return-types-smoke.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.test-live-error-handling.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.test-live-performance.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.test-live-security.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.test-live-comprehensive.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.github-environment.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
-            if [[ "${{ needs.integration-tests.result }}" == "success" ]]; then
-              passed=$((passed + 1))
-            fi
+            [[ "$SMOKE_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$RETURN_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$ERROR_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$PERF_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$SEC_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$COMP_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$ENV_RESULT" == "success" ]] && passed=$((passed + 1))
+            [[ "$INT_RESULT" == "success" ]] && passed=$((passed + 1))
 
             if [[ $passed -eq $total ]]; then
               echo "## 🎉 All Core Integration Tests Passed ($passed/$total)"
